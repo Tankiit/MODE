@@ -72,7 +72,7 @@ print("To view TensorBoard:")
 print(f"  tensorboard --logdir={config.TENSORBOARD_DIR}")
 print()
 if config.USE_WANDB and not WANDB_AVAILABLE:
-    print("⚠️  WandB not installed! Install with: pip install wandb")
+    print("WARNING: WandB not installed! Install with: pip install wandb")
     print()
 print("="*70)
 print()

@@ -1,4 +1,4 @@
-# 📊 Selective Multi-Classifier Coreset Selection with TensorBoard & WandB
+# Selective Multi-Classifier Coreset Selection with TensorBoard & WandB
 
 > **Real-time experiment tracking for coreset selection with deep learning**
 
@@ -7,22 +7,22 @@
 [![TensorBoard](https://img.shields.io/badge/TensorBoard-enabled-orange.svg)](https://www.tensorflow.org/tensorboard)
 [![WandB](https://img.shields.io/badge/WandB-integrated-yellow.svg)](https://wandb.ai/)
 
-## 🎯 Overview
+## Overview
 
 This project implements **selective multi-classifier coreset selection** with comprehensive experiment tracking using **TensorBoard** and **Weights & Biases**. Track every aspect of your training in real-time!
 
 ### Key Features
 
-- ✅ **4 Scoring Functions**: Uncertainty, Diversity, Boundary, Excess Loss
-- ✅ **Adaptive Gating**: Learn which scorer to trust
-- ✅ **Confidence-Based Rejection**: Filter unreliable predictions
-- ✅ **Sample Waste Tracking**: Identify inefficient training samples
-- ✅ **Multi-Ratio Experiments**: Test different selection ratios automatically
-- ✅ **Multi-Model Support**: Compare architectures (ResNet, EfficientNet, etc.)
-- ✅ **TensorBoard Integration**: Local visualization and analysis
-- ✅ **WandB Integration**: Cloud-based tracking and collaboration
+- **4 Scoring Functions**: Uncertainty, Diversity, Boundary, Excess Loss
+- **Adaptive Gating**: Learn which scorer to trust
+- **Confidence-Based Rejection**: Filter unreliable predictions
+- **Sample Waste Tracking**: Identify inefficient training samples
+- **Multi-Ratio Experiments**: Test different selection ratios automatically
+- **Multi-Model Support**: Compare architectures (ResNet, EfficientNet, etc.)
+- **TensorBoard Integration**: Local visualization and analysis
+- **WandB Integration**: Cloud-based tracking and collaboration
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Installation
 
@@ -66,7 +66,7 @@ tensorboard --logdir=./runs
 - Check the URL printed in console
 - Or visit: https://wandb.ai/your-username/cifar10-selective-coreset
 
-## 📊 What You Get
+## What You Get
 
 ### Real-Time Metrics
 
@@ -187,7 +187,7 @@ logger_obj.log_image('predictions/batch_0', image_tensor, step)
 logger_obj.log_histogram('activations/layer1', activations, step)
 ```
 
-## 📈 Monitoring During Training
+## Monitoring During Training
 
 ### Terminal Output
 ```
@@ -237,7 +237,7 @@ tensorboard --logdir=./runs --reload_interval=5
 - Export to PDF/PNG
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Logging Settings
 
@@ -276,7 +276,7 @@ config.BATCH_SIZE = 128
 config.RATIOS_TO_TEST = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9]
 ```
 
-## 📊 Example Results
+## Example Results
 
 After running experiments, you'll see:
 
@@ -352,7 +352,7 @@ config.LOG_INTERVAL = 100
 - **[TensorBoard Docs](https://www.tensorflow.org/tensorboard)**: Official TensorBoard documentation
 - **[WandB Docs](https://docs.wandb.ai/)**: Official Weights & Biases documentation
 
-## 🎯 Tips & Best Practices
+## Tips & Best Practices
 
 1. **Start Small**: Run quick tests (10 epochs) before full training
 2. **Use Tags**: Organize experiments with wandb tags
@@ -361,7 +361,7 @@ config.LOG_INTERVAL = 100
 5. **Save Checkpoints**: Enable `SAVE_CHECKPOINTS = True`
 6. **Document Everything**: WandB auto-logs git commit hash
 
-## 🚀 Advanced Features
+## Advanced Features
 
 ### Hyperparameter Sweeps (WandB)
 
@@ -411,6 +411,6 @@ class CustomLogger(ExperimentLogger):
 
 ---
 
-**Happy Experimenting! 🎉**
+**Happy Experimenting!**
 
 View your experiments in real-time and make data-driven decisions!

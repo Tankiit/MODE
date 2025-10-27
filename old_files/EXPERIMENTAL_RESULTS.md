@@ -8,7 +8,7 @@
 
 ---
 
-## 📊 EXECUTIVE SUMMARY
+## EXECUTIVE SUMMARY
 
 This experiment compares three training approaches:
 1. **Full-Training**: Traditional training using 100% of tokens
@@ -20,12 +20,12 @@ This experiment compares three training approaches:
 
 ---
 
-## 🎯 FINAL RESULTS
+## FINAL RESULTS
 
 | Method | Best Val Perplexity | Training Loss | Token Usage | Epochs | Status |
 |--------|---------------------|---------------|-------------|--------|--------|
-| **Full-Training** | **51.25** | 3.02 | 100% | 6 | ✅ Complete |
-| **Rho-1** | **51.81** (+1.1%) | 2.75 | 30% | 3 | ✅ Complete |
+| **Full-Training** | **51.25** | 3.02 | 100% | 6 | Complete |
+| **Rho-1** | **51.81** (+1.1%) | 2.75 | 30% | 3 | Complete |
 | **Dual-MODE** | In Progress | 4.10 | 30% | 0.82 | 🟡 Partial |
 
 ### Performance Analysis
@@ -43,7 +43,7 @@ Improvement vs Full-Training: -1.10%
 
 ---
 
-## 📈 DETAILED METRICS
+## DETAILED METRICS
 
 ### 1. Full-Training (Baseline)
 
@@ -59,7 +59,7 @@ Improvement vs Full-Training: -1.10%
 Epoch 1: Train Loss: 3.94 | Val PPL: 52.28
 Epoch 2: Train Loss: 3.95 | Val PPL: 51.73
 Epoch 3: Train Loss: 3.94 | Val PPL: 51.26
-Epoch 4: Train Loss: 3.95 | Val PPL: 51.25 ⭐ (Best)
+Epoch 4: Train Loss: 3.95 | Val PPL: 51.25 (Best)
 Epoch 5: Train Loss: 3.36 | Val PPL: 54.60
 Epoch 6: Train Loss: 3.02 | Val PPL: 62.40
 ```
@@ -86,7 +86,7 @@ Epoch 6: Train Loss: 3.02 | Val PPL: 62.40
 
 **Results by Epoch**:
 ```
-Epoch 1: Train Loss: 3.95 | Val PPL: 51.81 ⭐ (Best) | Selection: 100.0% (warmup)
+Epoch 1: Train Loss: 3.95 | Val PPL: 51.81 (Best) | Selection: 100.0% (warmup)
 Epoch 2: Train Loss: 3.13 | Val PPL: 57.24 | Selection: 30.0%
 Epoch 3: Train Loss: 2.75 | Val PPL: 64.67 | Selection: 30.0%
 ```
@@ -306,7 +306,7 @@ RuntimeError: MPS backend out of memory
 
 ---
 
-## 💡 KEY INSIGHTS
+## KEY INSIGHTS
 
 ### 1. Token Selection Efficiency
 **Rho-1 demonstrates that selective training is viable**:
@@ -322,7 +322,7 @@ RuntimeError: MPS backend out of memory
 
 ### 3. Warmup Phase is Critical
 **Rho-1's best performance in warmup epoch**:
-- Epoch 1 (100% tokens): PPL 51.81 ⭐
+- Epoch 1 (100% tokens): PPL 51.81 (Best)
 - Epoch 2 (30% tokens): PPL 57.24
 - Suggests full training initially stabilizes model
 
@@ -345,15 +345,15 @@ RuntimeError: MPS backend out of memory
 
 ---
 
-## 🎯 RECOMMENDATIONS
+## RECOMMENDATIONS
 
 ### For Production Use
 
 **Choose Rho-1 if**:
-- ✅ Want simple, effective token selection
-- ✅ Need 70% compute reduction
-- ✅ Can accept 1-2% performance drop
-- ✅ Have reference model available
+- Want simple, effective token selection
+- Need 70% compute reduction
+- Can accept 1-2% performance drop
+- Have reference model available
 
 **Optimize Further**:
 1. **Tune token budget**: Try 40-50% for better performance
@@ -419,7 +419,7 @@ tensorboard --logdir=./runs_dual_mode_comparison
 
 ---
 
-## 📊 COMPARATIVE ANALYSIS
+## COMPARATIVE ANALYSIS
 
 ### Efficiency Metrics
 
@@ -440,7 +440,7 @@ Based on Rho-1 results, we can extrapolate:
 |--------|--------------|--------------|-----------|
 | 100% | 51.25 | 1.0x | Baseline |
 | 50% | ~51.5 | 0.5x | Excellent |
-| 30% | 51.81 | 0.3x | Good ⭐ |
+| 30% | 51.81 | 0.3x | Good |
 | 20% | ~53-55 | 0.2x | Acceptable |
 | 10% | ~60+ | 0.1x | Poor |
 
@@ -470,7 +470,7 @@ Based on Rho-1 results, we can extrapolate:
 
 ---
 
-## 📝 CITATIONS & REFERENCES
+## CITATIONS & REFERENCES
 
 **Rho-1 (Selective Language Modeling)**:
 - Concept: Select tokens with high excess loss vs reference model
@@ -489,22 +489,22 @@ Based on Rho-1 results, we can extrapolate:
 
 ---
 
-## ✅ CONCLUSION
+## CONCLUSION
 
 This experiment successfully demonstrates that **Rho-1's selective token training achieves 70% computational savings with only 1.1% performance degradation** (51.81 vs 51.25 perplexity).
 
 ### What Worked
-✅ Rho-1 selection strategy
-✅ Pretrained model initialization
-✅ Proper perplexity calculation
-✅ Budget enforcement (exactly 30%)
-✅ Dimension mismatch fixes
+- Rho-1 selection strategy
+- Pretrained model initialization
+- Proper perplexity calculation
+- Budget enforcement (exactly 30%)
+- Dimension mismatch fixes
 
 ### What Needs Improvement
-❌ Dual-MODE memory efficiency
-❌ FAISS integration for fast retrieval
-❌ MPS memory limitations
-❌ Token MODE strategy scalability
+- Dual-MODE memory efficiency
+- FAISS integration for fast retrieval
+- MPS memory limitations
+- Token MODE strategy scalability
 
 ### Overall Assessment
 **Rho-1 is production-ready** for selective token training. Dual-MODE shows promise but requires further optimization for practical deployment.

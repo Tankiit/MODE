@@ -39,9 +39,9 @@ PRECOMPUTATION PHASE (Once):
   ...
 
 TRAINING PHASE (Every Epoch):
-  Sample 1 → [Cache Lookup] → Loss: 2.3 ⚡ (instant!)
-  Sample 2 → [Cache Lookup] → Loss: 1.8 ⚡ (instant!)
-  Sample 3 → [Cache Lookup] → Loss: 2.1 ⚡ (instant!)
+  Sample 1 → [Cache Lookup] → Loss: 2.3 (instant!)
+  Sample 2 → [Cache Lookup] → Loss: 1.8 (instant!)
+  Sample 3 → [Cache Lookup] → Loss: 2.1 (instant!)
   ...
 
 Total: N_samples forward passes (200× faster!)
@@ -210,7 +210,7 @@ Yes      No                   │
 ┌──────┐ ┌─────────────────────┐
 │Cache │ │Compute reference    │
 │ Hit! │ │loss on-the-fly      │
-│ ⚡   │ │(forward pass)       │
+│     │ │(forward pass)       │
 └──────┘ └─────────────────────┘
    │              │
    └──────┬───────┘

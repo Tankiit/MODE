@@ -1,10 +1,10 @@
 # TensorBoard & Weights & Biases Logging Guide
 
-## 📊 Overview
+## Overview
 
 This guide shows you how to use TensorBoard and Weights & Biases (wandb) for tracking your selective coreset experiments.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install Dependencies
 
@@ -59,7 +59,7 @@ tensorboard --logdir=./runs
 - Visit your wandb dashboard (link printed in console)
 - Or go to: https://wandb.ai/your-username/cifar10-selective-coreset
 
-## 📈 What Gets Logged
+## What Gets Logged
 
 ### Training Metrics (Every Batch/Epoch)
 
@@ -107,7 +107,7 @@ tensorboard --logdir=./runs
 | Gradient Flow | Gradient statistics | TB |
 | Model Watching | Real-time parameter tracking | WandB |
 
-## 🎯 TensorBoard Features
+## TensorBoard Features
 
 ### 1. Scalars View
 Track metrics over time:
@@ -175,7 +175,7 @@ sweep_config = {
 - Embed interactive plots
 - Collaborative annotations
 
-## 📊 Example Visualizations
+## Example Visualizations
 
 ### Accuracy vs Selection Ratio
 ```python
@@ -195,7 +195,7 @@ sweep_config = {
 # Identify inefficiencies in selection
 ```
 
-## 🔧 Configuration Options
+## Configuration Options
 
 ### In `run_with_logging.py`:
 
@@ -350,7 +350,7 @@ config.LOG_IMAGES = False
    # Both logged to same project for comparison
    ```
 
-## 🎯 Quick Tips
+## Quick Tips
 
 - **Parallel coordinates in TensorBoard**: Great for hyperparameter analysis
 - **WandB Tables**: Perfect for sample-level analysis
@@ -364,7 +364,7 @@ config.LOG_IMAGES = False
 - WandB docs: https://docs.wandb.ai/
 - Issues: https://github.com/your-repo/issues
 
-## 🎉 Example Commands
+## Example Commands
 
 ```bash
 # Quick test with TensorBoard only
@@ -386,4 +386,4 @@ tensorboard --logdir_spec=\
 wandb artifact get your-project/results:latest
 ```
 
-Happy experimenting! 🚀
+Happy experimenting!

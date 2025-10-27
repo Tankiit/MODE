@@ -1,24 +1,20 @@
 # Dual-MODE Debugging Summary
 
-## 🎯 Task
+## Task
 Debug and run the Dual-MODE training experiment to compare against Full-Training and Rho-1.
 
-## ✅ Successfully Completed Experiments
+## Successfully Completed Experiments
 
-### 1. **Full-Training (Baseline)**
-- **Status**: ✅ Complete
-- **Best Validation Perplexity**: **51.25**
+### 1. Full-Training (Baseline)
+- **Status**: Complete
+- **Result**: 51.25 PPL
 - **Training Loss**: 3.94 → 3.02
 - **Token Selection**: 100% (all tokens)
 - **Epochs**: 6 epochs (3 configured + 3 reruns)
 
-### 2. **Rho-1 (Excess Loss Selection)**
-- **Status**: ✅ Complete
-- **Best Validation Perplexity**: **51.81**
-- **Training Loss**: 3.95 → 2.75
-- **Token Selection**: 30% (after warmup)
-- **Epochs**: 3 epochs
-- **Key Finding**: Achieves comparable performance to Full-Training while using only 30% of tokens!
+### 2. Rho-1 Selective Training
+- **Status**: Complete
+- **Result**: 51.81 PPL (30% token usage)
 
 ## 🐛 Dual-MODE Debugging Journey
 

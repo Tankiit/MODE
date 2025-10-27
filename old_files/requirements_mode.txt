@@ -1,0 +1,55 @@
+# MODE Integration Requirements for GALORE
+# ===========================================
+# Core dependencies for MODE (Memory-Optimized Data Selection) integration
+# with the GALORE framework for RL-guided data selection on CIFAR datasets.
+
+# Core PyTorch and ML libraries
+torch>=1.9.0
+torchvision>=0.10.0
+numpy>=1.21.0
+scipy>=1.7.0
+
+# Transformers (for advanced model architectures)
+transformers>=4.20.0
+tokenizers>=0.12.0
+
+# Data handling and processing
+datasets>=2.0.0
+pillow>=8.3.0
+opencv-python>=4.5.0
+
+# Visualization and monitoring
+tensorboard>=2.8.0
+matplotlib>=3.5.0
+seaborn>=0.11.0
+tqdm>=4.62.0
+
+# Scientific computing
+scikit-learn>=1.0.0
+pandas>=1.3.0
+
+# Optional: FAISS for efficient similarity search
+faiss-cpu>=1.7.0  # Use faiss-gpu if CUDA available
+
+# Configuration and utilities
+dataclasses-json>=0.5.0
+pyyaml>=6.0
+argparse
+pathlib2>=2.3.0
+
+# Development and testing
+pytest>=6.2.0
+black>=21.0.0
+flake8>=4.0.0
+
+# Jupyter notebook support (optional)
+jupyter>=1.0.0
+ipywidgets>=7.6.0
+
+# Memory profiling (optional)
+memory-profiler>=0.60.0
+psutil>=5.8.0
+
+# Additional utilities
+collections-extended>=3.0.0
+typing-extensions>=4.0.0

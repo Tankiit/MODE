@@ -1,0 +1,279 @@
+================================================================================
+FILES TO TRANSFER TO SERVER FOR VERIFICATION
+================================================================================
+
+📁 ESSENTIAL FILES (Required)
+================================================================================
+
+1. mode.py
+   - Main training code with all 3 methods (Full, Rho-1, Dual-MODE)
+   - Contains: Config, Trainer, feature extraction, perplexity calculation
+   - Size: ~1100 lines
+   - Required: Yes
+
+2. run_server_experiments.sh
+   - Automated script to run experiments on server
+   - Interactive: Prompts user to choose experiment type
+   - Creates output directories automatically
+   - Required: Yes (for easy execution)
+
+3. EXPERIMENTAL_RESULTS.md
+   - Complete documentation of results and methodology
+   - Includes: Metrics, debugging journey, insights, recommendations
+   - Required: Yes (for verification reference)
+
+4. SERVER_SETUP.md
+   - Step-by-step setup guide
+   - Troubleshooting tips
+   - Performance expectations by hardware
+   - Required: Yes (for first-time setup)
+
+================================================================================
+📁 SUPPLEMENTARY FILES (Optional but Useful)
+================================================================================
+
+5. summarize_metrics.py
+   - Generates detailed metrics summary from TensorBoard logs
+   - Creates text output of all experiments
+   - Required: No (but recommended for analysis)
+
+6. cachelib_strategies.py
+   - Production-grade feature caching implementation
+   - Required: No (imported by mode.py but not actively used)
+
+7. mode_hypernetwork.py
+   - Memory-augmented hypernetwork for MODE
+   - Standalone visualization tool
+   - Required: No (separate from main experiments)
+
+8. visualize_mode_strategies.py
+   - Creates 4-panel visualization of strategy evolution
+   - Requires matplotlib
+   - Required: No (visualization only)
+
+9. DEBUGGING_SUMMARY.md
+   - Detailed debugging journey and fixes applied
+   - Useful for understanding issues and solutions
+   - Required: No (reference document)
+
+================================================================================
+📁 FILES GENERATED DURING EXECUTION (Do Not Transfer)
+================================================================================
+
+- ./runs_dual_mode_comparison/    (TensorBoard logs, created automatically)
+- ./hypernetwork_results/         (Visualization outputs)
+- ./server_results/               (Created by run_server_experiments.sh)
+- *.log files                     (Runtime logs)
+- *.pyc files                     (Python bytecode)
+
+================================================================================
+📋 TRANSFER COMMAND EXAMPLES
+================================================================================
+
+Option 1: Transfer Essential Files Only (Minimal)
+----------------------------------------------------------------------
+scp mode.py run_server_experiments.sh EXPERIMENTAL_RESULTS.md SERVER_SETUP.md \
+    user@server:~/experiment/
+
+Option 2: Transfer All Useful Files (Recommended)
+----------------------------------------------------------------------
+scp mode.py run_server_experiments.sh summarize_metrics.py \
+    EXPERIMENTAL_RESULTS.md SERVER_SETUP.md DEBUGGING_SUMMARY.md \
+    user@server:~/experiment/
+
+Option 3: Transfer Everything
+----------------------------------------------------------------------
+rsync -avz --exclude '*.pyc' --exclude '__pycache__' \
+    --exclude 'runs_*' --exclude '*.log' \
+    *.py *.sh *.md user@server:~/experiment/
+
+================================================================================
+🎯 MINIMUM SETUP (Just Run Experiments)
+================================================================================
+
+Only need these 2 files:
+1. mode.py
+2. run_server_experiments.sh
+
+Then on server:
+$ chmod +x run_server_experiments.sh
+$ ./run_server_experiments.sh
+
+================================================================================
+📊 RECOMMENDED SETUP (Full Verification)
+================================================================================
+
+Transfer these files:
+1. mode.py                    (code)
+2. run_server_experiments.sh  (runner)
+3. summarize_metrics.py       (analysis)
+4. EXPERIMENTAL_RESULTS.md    (reference)
+5. SERVER_SETUP.md            (guide)
+
+Then on server:
+$ chmod +x run_server_experiments.sh
+$ ./run_server_experiments.sh
+$ python summarize_metrics.py  # After completion
+
+================================================================================
+✅ VERIFICATION WORKFLOW
+================================================================================
+
+1. Transfer files to server
+   → Use scp or rsync commands above
+
+2. Install dependencies
+   → pip install torch transformers datasets numpy matplotlib tensorboard
+
+3. Run experiments
+   → ./run_server_experiments.sh
+   → Choose option 2 (Full + Rho-1 only) for reliable results
+
+4. Check outputs
+   → cat ./server_results/metrics_summary.log
+   → Verify perplexities match expected range (50-52)
+
+5. Compare with reference
+   → Open EXPERIMENTAL_RESULTS.md
+   → Compare your results with documented results
+   → Differences of ±2 PPL are normal due to randomness
+
+================================================================================
+📈 EXPECTED FILE SIZES
+================================================================================
+
+mode.py                      ~70 KB
+run_server_experiments.sh    ~5 KB
+summarize_metrics.py         ~8 KB
+EXPERIMENTAL_RESULTS.md      ~40 KB
+SERVER_SETUP.md              ~15 KB
+DEBUGGING_SUMMARY.md         ~25 KB
+
+Total (minimal):             ~75 KB
+Total (recommended):         ~140 KB
+
+================================================================================
+🔒 DEPENDENCIES
+================================================================================
+
+Required Python packages:
+- torch>=2.0.0
+- transformers>=4.30.0
+- datasets>=2.14.0
+- numpy>=1.24.0
+
+Optional:
+- matplotlib (for visualizations)
+- tensorboard (for logging)
+- faiss-cpu or faiss-gpu (for fast retrieval)
+
+Install command:
+pip install torch transformers datasets numpy matplotlib tensorboard
+
+================================================================================
+⏱️ EXPECTED RUNTIME
+================================================================================
+
+Full-Training + Rho-1:
+- A100 (40GB):     10-15 minutes
+- RTX 3090 (24GB): 15-20 minutes
+- RTX 3060 (12GB): 20-25 minutes
+- CPU:             2-3 hours (not recommended)
+
+All Three Methods (including Dual-MODE):
+- A100:            30-40 minutes
+- RTX 3090:        40-50 minutes
+- RTX 3060:        May OOM (reduce batch size)
+
+================================================================================
+💾 DISK SPACE REQUIRED
+================================================================================
+
+Code files:              < 1 MB
+Dataset cache:           ~ 50 MB (WikiText-2, auto-downloaded)
+Model cache:             ~ 250 MB (DistilGPT-2, auto-downloaded)
+TensorBoard logs:        ~ 10-20 MB per experiment
+Results:                 < 1 MB
+
+Total:                   ~ 350-400 MB
+
+================================================================================
+🎓 WHAT EACH FILE DOES
+================================================================================
+
+mode.py
+----------------------------------------------------------------------
+- Core implementation of all 3 training methods
+- Handles: data loading, feature extraction, token selection, training
+- Contains: Config, Trainer class, evaluation functions
+- Lines: ~1100
+- Purpose: Complete implementation ready to run
+
+run_server_experiments.sh
+----------------------------------------------------------------------
+- Bash script for automated execution
+- Checks: Python version, dependencies, GPU availability
+- Options: Run all methods or just Full+Rho-1
+- Creates: Output directories, saves logs, generates summary
+- Purpose: One-command execution on server
+
+EXPERIMENTAL_RESULTS.md
+----------------------------------------------------------------------
+- Complete documentation of all results
+- Sections: Executive summary, detailed metrics, debugging, insights
+- Contains: Tables, code snippets, comparisons, recommendations
+- Purpose: Reference for verification and understanding results
+
+SERVER_SETUP.md
+----------------------------------------------------------------------
+- Step-by-step setup instructions
+- Includes: Transfer commands, installation, troubleshooting
+- Hardware: Performance expectations by GPU type
+- Purpose: Guide for running experiments on new server
+
+summarize_metrics.py
+----------------------------------------------------------------------
+- Analyzes TensorBoard logs after experiments complete
+- Outputs: Text summary with all metrics
+- Extracts: Loss curves, perplexities, selection rates
+- Purpose: Generate human-readable results
+
+================================================================================
+🚀 QUICK START (Copy-Paste)
+================================================================================
+
+On your local machine:
+----------------------------------------------------------------------
+cd /Users/tanmoy/research/Dataset_Distillation/Coreset/LLM_stuff
+scp mode.py run_server_experiments.sh EXPERIMENTAL_RESULTS.md \
+    SERVER_SETUP.md user@server:~/experiment/
+
+On the server:
+----------------------------------------------------------------------
+cd ~/experiment
+pip install torch transformers datasets numpy matplotlib tensorboard
+chmod +x run_server_experiments.sh
+./run_server_experiments.sh
+# Choose option 2 when prompted
+
+After completion:
+----------------------------------------------------------------------
+cat ./server_results/metrics_summary.log
+# Check if perplexities are in expected range (50-52)
+
+================================================================================
+📧 SHARING RESULTS
+================================================================================
+
+When reporting back, share:
+1. server_results/metrics_summary.log
+2. server_results/system_info.txt
+3. Final perplexity values
+4. Any errors encountered
+
+Command to package results:
+----------------------------------------------------------------------
+tar -czf results.tar.gz server_results/ runs_dual_mode_comparison/
+# Then scp results.tar.gz back to local machine
+
+================================================================================

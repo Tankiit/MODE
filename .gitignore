@@ -1,0 +1,8 @@
+# Ignore everything by default
+*
+
+# Allow Python source files
+!*.py
+
+# Keep .gitignore so these rules are preserved
+!.gitignore

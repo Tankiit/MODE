@@ -1370,16 +1370,36 @@ class CausalSelfAttention(nn.Module):
             mask = causal_mask & document_mask
             return torch.where(mask, score, -float("inf"))
 
-        # FlexAttention
-        y = _get_flex_attention()(
-            q.transpose(1, 2),
-            k.transpose(1, 2),
-            v.transpose(1, 2),
-            block_mask=block_mask,
-            scale=attn_scale,
-            score_mod=score_mod,
-            kernel_options=_flex_attention_kernel_options,
-        ).transpose(1, 2)
+        # FlexAttention (preferred) or SDPA fallback when FlexAttention is unavailable
+        flex = _get_flex_attention()
+        if flex is not None and block_mask is not None:
+            y = flex(
+                q.transpose(1, 2),
+                k.transpose(1, 2),
+                v.transpose(1, 2),
+                block_mask=block_mask,
+                scale=attn_scale,
+                score_mod=score_mod,
+                kernel_options=_flex_attention_kernel_options,
+            ).transpose(1, 2)
+        else:
+            # Build combined causal + document mask for SDPA
+            T = x.size(1)
+            idx_q = torch.arange(T, device=x.device)
+            idx_k = torch.arange(T, device=x.device)
+            causal = (idx_q[:, None] >= idx_k[None, :])  # [T, T]
+            doc_eq = (docs[:, None] == docs[None, :])    # [T, T]
+            mask_bool = causal & doc_eq
+            # Broadcast to [B, H, T, T]
+            attn_mask = torch.where(
+                mask_bool,
+                torch.zeros((1, 1, T, T), dtype=q.dtype, device=x.device),
+                torch.full((1, 1, T, T), float("-inf"), dtype=q.dtype, device=x.device),
+            )
+            qh, kh, vh = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)  # [B, H, T, D]
+            y = F.scaled_dot_product_attention(
+                qh, kh, vh, attn_mask=attn_mask, is_causal=False
+            ).transpose(1, 2)
 
         # Attention gating (from train_gpt.py)
         if self.attn_gate is not None:
@@ -1801,7 +1821,7 @@ class GPT(nn.Module):
         # manual block mask creation by @YouJiacheng
         assert len(docs) % BLOCK_SIZE == 0
         NUM_BLOCKS = len(docs) // BLOCK_SIZE
-        block_idx = torch.arange(NUM_BLOCKS, dtype=torch.int32, device="cuda")
+        block_idx = torch.arange(NUM_BLOCKS, dtype=torch.int32, device=docs.device)
         causal_blockmask_any = block_idx[:, None] >= block_idx
         causal_blockmask_all = block_idx[:, None] > block_idx
         docs_low = docs.view(-1, BLOCK_SIZE)[:, 0].contiguous()
@@ -1861,7 +1881,10 @@ class GPT(nn.Module):
         docs = (input_seq == self._eos_token_id).cumsum(0)
 
         if any_requires_mask:
-            long_bm, short_bm = self.create_blockmasks(docs, sliding_window_num_blocks)
+            if _get_flex_attention() is not None and BlockMask is not None:
+                long_bm, short_bm = self.create_blockmasks(docs, sliding_window_num_blocks)
+            else:
+                long_bm = short_bm = None
         block_masks = []
         key_offsets = []  # Key offset flags for each layer (True for long windows)
         for i, char in enumerate(self.attention_pattern_config["block_mask_pattern"]):

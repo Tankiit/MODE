@@ -132,7 +132,8 @@ def _apply_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     print(f"Random seed set to {seed}")
 
 
@@ -168,15 +169,27 @@ def main():
     # Import torch only after environment tuning above.
     import torch
 
-    torch.empty(1, device="cuda", requires_grad=True).backward()  # prevents a bug on some systems
+    # Select device: prefer CUDA, then MPS (Apple Silicon), then CPU
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        # Warm up CUDA autograd path to avoid rare issues on some systems
+        try:
+            torch.empty(1, device=device, requires_grad=True).backward()
+        except Exception:
+            pass
+    elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
 
     configure_torch_runtime(detected_gpu_info)
 
     if args.seed is not None:
         _apply_seed(args.seed)
 
-    assert torch.cuda.is_available()
-    torch.cuda.set_device(torch.device("cuda:0"))
+    # Set CUDA device if available; otherwise skip
+    if device.type == "cuda":
+        torch.cuda.set_device(torch.device("cuda:0"))
 
     _ensure_fineweb10b_cached_data(config)
 

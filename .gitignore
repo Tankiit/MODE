@@ -208,3 +208,23 @@ __marimo__/
 
 data/fineweb10B/
 wandb/
+
+# Markdown files
+*.md
+!CLAUDE.md
+
+# Model checkpoints
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+checkpoint*.pt
+checkpoint*.pth
+checkpoint*.ckpt
+
+# Data files
+*.bin
+*.bin.index
+data/shards/
+data/*.bin
+data/*.bin.index

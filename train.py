@@ -250,7 +250,17 @@ class TrainingManager:
     def get_window_size_blocks(self, step: int, block_size: int = 128) -> Tensor:
         """Get window size in blocks for FlexAttention."""
         ws = self.get_window_size(step)
-        return torch.tensor(ws * block_size // block_size, dtype=torch.int32, device="cuda")
+        # Use current available device (CUDA > MPS > CPU)
+        device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else (
+                "mps"
+                if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
+                else "cpu"
+            )
+        )
+        return torch.tensor(ws * block_size // block_size, dtype=torch.int32, device=device)
 
     def advance_schedule(self, step: int):
         """
@@ -427,8 +437,18 @@ class TrainingManager:
 
 
 def single_gpu_data_generator(
-    filename_pattern: str, num_tokens: int, max_seq_len: int, align_to_bos: bool = True
+    filename_pattern: str, num_tokens: int, max_seq_len: int, align_to_bos: bool = True, *, device: torch.device | None = None
 ):
+    if device is None:
+        device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else (
+                "mps"
+                if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
+                else "cpu"
+            )
+        )
     files = [Path(file) for file in sorted(glob.glob(filename_pattern))]
     if not files:
         raise FileNotFoundError(f"No data shards matched pattern: {filename_pattern}")
@@ -454,8 +474,8 @@ def single_gpu_data_generator(
                 tokens, pos = _load_data_shard(next(file_iter)), 0
             buf = tokens[pos : pos + num_tokens + 1]
             pos += num_tokens
-        inputs = buf[:-1].to(device="cuda", dtype=torch.int32, non_blocking=True)
-        targets = buf[1:].to(device="cuda", dtype=torch.int64, non_blocking=True)
+        inputs = buf[:-1].to(device=device, dtype=torch.int32, non_blocking=True)
+        targets = buf[1:].to(device=device, dtype=torch.int64, non_blocking=True)
         yield inputs, targets
 
 
@@ -591,6 +611,16 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
     # -----------------------------------------------------------------------------
     #    Construct model and optimizer
     # -----------------------------------------------------------------------------
+    # Resolve device for training (prefer CUDA, then MPS, else CPU)
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else (
+            "mps"
+            if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available()
+            else "cpu"
+        )
+    )
     max_seq_len = max(
         data_config["train_seq_len"], data_config["val_seq_len"], train_micro_batch_tokens
     )
@@ -610,11 +640,12 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
         residual_connection_config=residual_connection_config,
         wd_multipliers=wd_multipliers,
         low_rank_config=low_rank_config,
-    ).cuda()
-    # Convert all weights to bfloat16 (from train_gpt.py)
-    for m in model.modules():
-        if isinstance(m, (nn.Embedding, nn.Linear)):
-            m.weight.data = m.weight.data.bfloat16()
+    ).to(device)
+    # Convert all weights to bfloat16 on CUDA only (bfloat16 may be unsupported on MPS/CPU)
+    if device.type == "cuda":
+        for m in model.modules():
+            if isinstance(m, (nn.Embedding, nn.Linear)):
+                m.weight.data = m.weight.data.bfloat16()
 
     # Create TrainingManager
     training_manager_config = {
@@ -900,9 +931,8 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
 
         @lru_cache(maxsize=32)
         def get_window_size_blocks_helper(window_size: int):
-            return torch.tensor(window_size, dtype=torch.int32, pin_memory=True).cuda(
-                non_blocking=True
-            )
+            t = torch.tensor(window_size, dtype=torch.int32, pin_memory=True)
+            return t.to(device, non_blocking=True)
 
         def get_window_size_blocks(step: int):
             # Use TrainingManager's stepped schedule if window_schedule_config is available
@@ -955,7 +985,7 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
     print_log(f"Running warmup with sequence length: {warmup_seq_len}")
     for _ in range(warmup_steps):
         inputs = targets = torch.randint(
-            0, model_config["vocab_size"], size=(warmup_seq_len,), device="cuda"
+            0, model_config["vocab_size"], size=(warmup_seq_len,), device=device
         )
         if model_type == "gpt":
             loss = model(inputs.to(torch.int32), targets, get_window_size_blocks(0))
@@ -1043,6 +1073,7 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
         train_micro_batch_tokens,
         data_config["train_seq_len"],
         align_to_bos=True,
+        device=device,
     )
     training_time_s = 0
     train_tokens_processed = (
@@ -1124,7 +1155,13 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
 
     # Start timing right before the training/validation loop.
     # This avoids counting compile/setup work in train_time_s.
-    torch.cuda.synchronize()
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    elif device.type == "mps":
+        try:
+            torch.mps.synchronize()
+        except Exception:
+            pass
     t0 = time.perf_counter()
 
     for step in range(max_steps):
@@ -1141,7 +1178,13 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
             and (step == 0 or step % training_config["val_loss_every"] == 0)
         ):
             # stop the clock
-            torch.cuda.synchronize()
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+            elif device.type == "mps":
+                try:
+                    torch.mps.synchronize()
+                except Exception:
+                    pass
             training_time_s += time.perf_counter() - t0
             model.eval()
             # For validation, we don't need gradient accumulation
@@ -1153,6 +1196,7 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
                 data_config["val_seq_len"],
                 data_config["val_seq_len"],
                 align_to_bos=False,
+                device=device,
             )
             val_loss = 0
             val_tokens_this_step = 0
@@ -1224,7 +1268,13 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
 
             model.train()
             # start the clock again
-            torch.cuda.synchronize()
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+            elif device.type == "mps":
+                try:
+                    torch.mps.synchronize()
+                except Exception:
+                    pass
             t0 = time.perf_counter()
 
         if last_step:
@@ -1458,8 +1508,11 @@ def run_training(config, args, code: str, detected_gpu_info: dict, run_id):
 
             wandb.log(log_dict, step=step + 1)
 
-    peak_memory = torch.cuda.max_memory_allocated() // 1024 // 1024
-    reserved_memory = torch.cuda.max_memory_reserved() // 1024 // 1024
+    if device.type == "cuda":
+        peak_memory = torch.cuda.max_memory_allocated() // 1024 // 1024
+        reserved_memory = torch.cuda.max_memory_reserved() // 1024 // 1024
+    else:
+        peak_memory = reserved_memory = 0
     print_log(
         f"peak memory allocated: {peak_memory} MiB reserved: {reserved_memory} MiB", console=True
     )

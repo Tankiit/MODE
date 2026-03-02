@@ -208,6 +208,8 @@ __marimo__/
 
 data/fineweb10B/
 wandb/
+logs/
+assets/
 
 # Markdown files
 *.md

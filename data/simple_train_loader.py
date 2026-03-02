@@ -33,16 +33,20 @@ BOS_ID = 50256
 
 def _load_data_shard(file: Path) -> torch.Tensor:
     """Load a single data shard from disk."""
-    header = torch.from_file(str(file), False, 256, dtype=torch.int32)
-    assert header[0] == 20240520, "magic number mismatch in the data .bin file"
-    assert header[1] == 1, "unsupported version"
-    num_tokens = int(header[2])
-
+    # Read header and tokens directly to CPU (file I/O requires CPU)
     with file.open("rb", buffering=0) as f:
-        tokens = torch.empty(num_tokens, dtype=torch.uint16, pin_memory=True)
-        f.seek(256 * 4)
-        nbytes = f.readinto(tokens.numpy())
-        assert nbytes == 2 * num_tokens, "number of tokens read does not match header"
+        # Read header
+        header_bytes = f.read(256 * 4)
+        header = torch.frombuffer(header_bytes, dtype=torch.int32)
+
+        assert header[0] == 20240520, "magic number mismatch in the data .bin file"
+        assert header[1] == 1, "unsupported version"
+        num_tokens = int(header[2])
+
+        # Read tokens
+        token_bytes = f.read(2 * num_tokens)
+        tokens = torch.frombuffer(token_bytes, dtype=torch.uint16).clone()
+
     return tokens
 
 

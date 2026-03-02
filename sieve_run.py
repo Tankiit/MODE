@@ -211,11 +211,12 @@ def run_sieve_training(
 
     # Create data loader
     print(f"Loading data from: {data_pattern}")
+    # Use sequential batching for datasets without many document boundaries
     train_loader = SimpleTrainLoader(
         filename_pattern=data_pattern,
         num_tokens=num_tokens,
         max_seq_len=max_seq_len,
-        align_to_bos=True,
+        align_to_bos=False,  # Use sequential batching
         device=device,
     )
 

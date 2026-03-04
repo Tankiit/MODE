@@ -18,6 +18,7 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import math
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 
@@ -172,6 +173,16 @@ def main():
     parser.add_argument("--fp16", action="store_true", help="Enable FP16 training")
     parser.add_argument("--bf16", action="store_true", help="Enable BF16 training")
     parser.add_argument("--window_size_blocks", type=int, default=3, help="Sliding window size in blocks")
+    parser.add_argument("--save_total_limit", type=int, default=2, help="Max checkpoints to keep")
+    parser.add_argument(
+        "--lr_scheduler_type",
+        type=str,
+        default="cosine",
+        choices=[s.value for s in SchedulerType],
+        help="LR scheduler type",
+    )
+    parser.add_argument("--max_grad_norm", type=float, default=1.0)
+    parser.add_argument("--gradient_checkpointing", action="store_true", help="Enable gradient checkpointing (if supported)")
 
     # Optional SIEVE-like random masking
     parser.add_argument("--sieve_method", type=str, default="full", choices=["full", "random"], help="Token selection method")
@@ -215,7 +226,7 @@ def main():
     lm_ds = tokenized.map(group_texts, batched=True)
 
     # HF Trainer setup
-    from transformers import Trainer, TrainingArguments
+    from transformers import Trainer, TrainingArguments, SchedulerType
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -227,11 +238,15 @@ def main():
         warmup_ratio=args.warmup_ratio,
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
+        save_total_limit=args.save_total_limit,
         evaluation_strategy=("steps" if args.eval_steps and args.eval_steps > 0 else "no"),
         eval_steps=(args.eval_steps if args.eval_steps and args.eval_steps > 0 else None),
         deepspeed=args.deepspeed,
         fp16=args.fp16,
         bf16=args.bf16,
+        lr_scheduler_type=args.lr_scheduler_type,
+        max_grad_norm=args.max_grad_norm,
+        gradient_checkpointing=args.gradient_checkpointing,
         dataloader_drop_last=True,
         report_to=["none"],
     )
@@ -269,6 +284,16 @@ def main():
 
             return (loss, outputs) if return_outputs else loss
 
+        def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
+            metrics = super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+            key = f"{metric_key_prefix}_loss"
+            if key in metrics and math.isfinite(metrics[key]):
+                try:
+                    metrics[f"{metric_key_prefix}_perplexity"] = float(math.exp(metrics[key]))
+                except OverflowError:
+                    metrics[f"{metric_key_prefix}_perplexity"] = float("inf")
+            return metrics
+
     trainer = RamenTrainer(
         model=model,
         args=training_args,
@@ -282,4 +307,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -32,7 +32,20 @@ else:
 
 
 def _get_flex_attention():
-    return _compiled_flex_attention or flex_attention
+    """Get FlexAttention function if available and supported on current device."""
+    if flex_attention is None:
+        return None
+
+    # FlexAttention only supports CUDA, CPU, and HPU (not MPS/XLA)
+    # Check if we're on a supported device
+    if torch.cuda.is_available():
+        return _compiled_flex_attention or flex_attention
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+        # MPS (Apple Silicon) is not supported by FlexAttention
+        return None
+    else:
+        # CPU or other devices - try FlexAttention, let it error if unsupported
+        return _compiled_flex_attention or flex_attention
 
 
 def _resolve_low_rank_config(low_rank_config: dict | None) -> dict:
@@ -1819,7 +1832,13 @@ class GPT(nn.Module):
             return num_blocks[None, None].contiguous(), indices[None, None].contiguous()
 
         # manual block mask creation by @YouJiacheng
-        assert len(docs) % BLOCK_SIZE == 0
+        # Pad docs to be divisible by BLOCK_SIZE
+        seq_len = len(docs)
+        if seq_len % BLOCK_SIZE != 0:
+            pad_len = BLOCK_SIZE - (seq_len % BLOCK_SIZE)
+            # Pad with the last document ID to maintain document boundaries
+            docs = torch.cat([docs, docs[-1:].expand(pad_len)])
+
         NUM_BLOCKS = len(docs) // BLOCK_SIZE
         block_idx = torch.arange(NUM_BLOCKS, dtype=torch.int32, device=docs.device)
         causal_blockmask_any = block_idx[:, None] >= block_idx

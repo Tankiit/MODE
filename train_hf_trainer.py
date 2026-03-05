@@ -24,6 +24,7 @@ from typing import Dict, Any, Optional
 
 import torch
 from torch import Tensor
+from transformers import SchedulerType
 
 
 def _detect_device() -> torch.device:
@@ -226,7 +227,7 @@ def main():
     lm_ds = tokenized.map(group_texts, batched=True)
 
     # HF Trainer setup
-    from transformers import Trainer, TrainingArguments, SchedulerType
+    from transformers import Trainer, TrainingArguments
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -239,7 +240,7 @@ def main():
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         save_total_limit=args.save_total_limit,
-        evaluation_strategy=("steps" if args.eval_steps and args.eval_steps > 0 else "no"),
+        eval_strategy=("steps" if args.eval_steps and args.eval_steps > 0 else "no"),
         eval_steps=(args.eval_steps if args.eval_steps and args.eval_steps > 0 else None),
         deepspeed=args.deepspeed,
         fp16=args.fp16,
@@ -248,7 +249,9 @@ def main():
         max_grad_norm=args.max_grad_norm,
         gradient_checkpointing=args.gradient_checkpointing,
         dataloader_drop_last=True,
+        dataloader_pin_memory=False,  # Disable for MPS (Apple Silicon)
         report_to=["none"],
+        remove_unused_columns=False,  # we use input_ids in compute_loss; model has custom forward
     )
 
     window_blocks = _get_window_blocks(args.window_size_blocks, device=device)
@@ -258,8 +261,8 @@ def main():
         selector = RandomSelector(ratio=args.sieve_ratio, device=device)
 
     class RamenTrainer(Trainer):
-        def compute_loss(self, model, inputs, return_outputs=False):  # type: ignore[override]
-            # inputs["input_ids"]: shape [B, T]
+        def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):  # type: ignore[override]
+            # inputs["input_ids"]: shape [B, T]; *args/**kwargs for Trainer API (e.g. num_items_in_batch)
             input_ids = inputs["input_ids"]
             # We enforce B==1 to match model.forward signature; but in case user sets B>1, flatten leading dim.
             if input_ids.ndim == 2 and input_ids.size(0) > 1:

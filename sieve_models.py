@@ -151,7 +151,7 @@ class SieveSelector:
     @torch.no_grad()
     def score_and_cache(self, step: int, total_steps: int,
                         model, inputs: Tensor, targets: Tensor,
-                        sliding_window_num_blocks: Tensor,
+                        sliding_window_num_blocks=None,
                         train_loss: float = 0.0,
                         grad_norm: float = 0.0) -> Tensor:
         seq_len = targets.size(0)
@@ -172,7 +172,7 @@ class SieveSelector:
         if self.ref_logits is None and self.cfg.snapshot_reference:
             self.ref_logits = logits.detach().clone()
 
-        from .sieve_scorers import compute_all_scores, normalize_scores, combine_scores
+        from sieve_scorers import compute_all_scores, normalize_scores, combine_scores
         scores = compute_all_scores(logits, targets, self.ref_logits)
         scores = normalize_scores(scores)
 
@@ -189,7 +189,20 @@ class SieveSelector:
 
         return mask
 
-    def _get_logits(self, model, inputs, targets, sw_blocks) -> Tensor:
+    def _get_logits(self, model, inputs, targets, sw_blocks=None) -> Tensor:
+        if sw_blocks is None:
+            # HF native path: standard forward, logits returned directly
+            model.eval()
+            with torch.no_grad():
+                inp = inputs.unsqueeze(0) if inputs.dim() == 1 else inputs
+                outputs = model(input_ids=inp)
+                logits = outputs.logits
+            model.train()
+            if logits.dim() == 3:
+                logits = logits.squeeze(0)
+            return logits.detach()
+
+        # ramenGPT path: hook on lm_head + softcap
         captured = {}
 
         def hook_fn(module, input, output):
@@ -219,7 +232,7 @@ class SieveSelector:
 
     def get_token_mask(self, step: int, total_steps: int,
                        model, inputs: Tensor, targets: Tensor,
-                       sliding_window_num_blocks: Tensor,
+                       sliding_window_num_blocks=None,
                        train_loss: float = 0.0,
                        grad_norm: float = 0.0) -> Tensor:
         if self.needs_rescore(step):
@@ -345,7 +358,7 @@ class Rho1Selector:
         if self.ref_logits is None:
             self.ref_logits = logits.clone()
 
-        from .sieve_scorers import score_excess_loss
+        from sieve_scorers import score_excess_loss
         excess = score_excess_loss(logits, targets, self.ref_logits)
         _, top_idx = torch.topk(excess, num_select)
         mask = torch.zeros(seq_len, dtype=torch.bool, device=self.device)
@@ -409,7 +422,7 @@ class SingleStrategySelector:
         if logits.dim() == 3:
             logits = logits.squeeze(0)
 
-        from .sieve_scorers import score_excess_loss, score_uncertainty, score_attn_entropy, score_diversity
+        from sieve_scorers import score_excess_loss, score_uncertainty, score_attn_entropy, score_diversity
         score_fns = {
             "excess_loss": lambda: score_excess_loss(logits, targets),
             "uncertainty": lambda: score_uncertainty(logits),

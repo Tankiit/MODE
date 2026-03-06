@@ -1,18 +1,26 @@
 """
-Train ramenGPT model with Hugging Face Trainer (optional DeepSpeed).
+Train with Hugging Face Trainer (optional DeepSpeed).
 
-This script wraps the existing `model.GPT` into an HF Trainer workflow.
+Supports two model backends:
+- **ramenGPT** (default when --config is provided): custom GPT from model.py
+- **HF native** (when --config is omitted): any AutoModelForCausalLM (e.g. TinyLlama)
 
 Key features:
 - Uses Hugging Face `datasets` + `transformers` for data and training loop.
 - Optional token masking via a simple SIEVE-like selector (random) to demo integration.
 - Optional DeepSpeed via `--deepspeed path/to/ds_config.json`.
 
+Examples:
+    # ramenGPT mode (original)
+    python train_hf_trainer.py --config config/base.py --model_name_or_path gpt2
+
+    # HF native mode (e.g. TinyLlama)
+    python train_hf_trainer.py --model_name_or_path TinyLlama/TinyLlama-1.1B-Chat-v1.0
+
 Notes:
-- The ramenGPT `GPT.forward` expects 1D input and target tensors and a `sliding_window_num_blocks` tensor.
-  We run with `per_device_train_batch_size=1` and perform the shift in `compute_loss`.
+- ramenGPT mode: GPT.forward expects 1D tensors; batch_size forced to 1.
+- HF native mode: standard batched training, no softcap, no sliding window.
 - For Colab T4, prefer `fp16=True` and `bf16=False`.
-- This script downloads datasets/models if needed; run it in an environment with network access.
 """
 
 from __future__ import annotations
@@ -23,6 +31,7 @@ from dataclasses import dataclass
 from typing import Dict, Any, Optional
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from transformers import SchedulerType
 
@@ -56,9 +65,9 @@ class RandomSelector:
         self.ratio = ratio
         self.device = device
 
-    def get_token_mask(self, inputs: Tensor) -> Tensor:
-        # inputs is 1D: [T]
-        T = inputs.size(0)
+    def get_token_mask(self, inputs) -> Tensor:
+        # inputs can be a Tensor (ramenGPT) or an int (HF native)
+        T = inputs if isinstance(inputs, int) else inputs.size(0)
         k = max(1, int(T * self.ratio))
         idx = torch.randperm(T, device=self.device)[:k]
         mask = torch.zeros(T, dtype=torch.bool, device=self.device)
@@ -71,10 +80,9 @@ def _get_window_blocks(window_size: int, device: torch.device) -> Tensor:
 
 
 def build_model_from_config(config_module, max_seq_len: int, device: torch.device):
-    # Lazy import to avoid overhead if script is only parsed
+    """Build a ramenGPT model from a config module."""
     from model import GPT, set_flex_attention_kernel_options
 
-    # Configure flex attention kernels (best-effort)
     arch = torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu"
     set_flex_attention_kernel_options(arch)
 
@@ -107,6 +115,16 @@ def build_model_from_config(config_module, max_seq_len: int, device: torch.devic
         low_rank_config=low_rank_config,
     ).to(device)
 
+    return model
+
+
+def build_model_hf_native(model_name_or_path: str, bf16: bool = False, fp16: bool = False):
+    """Build a native HuggingFace causal LM (e.g. TinyLlama, GPT-2, LLaMA)."""
+    from transformers import AutoModelForCausalLM
+
+    dtype = torch.bfloat16 if bf16 else (torch.float16 if fp16 else torch.float32)
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path, torch_dtype=dtype)
+    print(f"Loaded HF model: {model_name_or_path} ({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)")
     return model
 
 
@@ -152,13 +170,42 @@ def sieve_masked_loss(model, inputs: Tensor, targets: Tensor, mask: Tensor) -> T
     return loss
 
 
+def sieve_masked_loss_hf(logits: Tensor, labels: Tensor, mask: Tensor,
+                         scale: bool = True) -> Tensor:
+    """SIEVE masked loss for native HF models.
+
+    Takes logits directly from model output (no hook, no softcap).
+    Shift is done here (predict next token).
+    """
+    shift_logits = logits[..., :-1, :].contiguous()
+    shift_labels = labels[..., 1:].contiguous()
+
+    flat_logits = shift_logits.view(-1, shift_logits.size(-1))
+    flat_labels = shift_labels.view(-1)
+
+    selected_logits = flat_logits[mask]
+    selected_labels = flat_labels[mask]
+
+    loss = F.cross_entropy(selected_logits, selected_labels, reduction="sum")
+
+    if scale:
+        num_selected = mask.sum().clamp(min=1).float()
+        total = float(flat_labels.size(0))
+        loss = loss * (total / num_selected)
+
+    loss = loss / float(flat_labels.size(0))
+    return loss
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Train ramenGPT with HF Trainer")
-    parser.add_argument("--config", type=str, required=True, help="Path to config .py (e.g., config/base.py)")
+    parser = argparse.ArgumentParser(description="Train with HF Trainer (ramenGPT or native HF model)")
+    parser.add_argument("--config", type=str, default=None,
+                        help="Path to ramenGPT config .py. If omitted, uses --model_name_or_path as a native HF model")
     parser.add_argument("--dataset", type=str, default="wikitext", help="HF dataset name (default: wikitext)")
     parser.add_argument("--dataset_config", type=str, default="wikitext-2-raw-v1", help="HF dataset config")
     parser.add_argument("--text_column", type=str, default="text", help="Text column name in dataset")
-    parser.add_argument("--model_name_or_path", type=str, default="gpt2", help="Tokenizer to use for encoding")
+    parser.add_argument("--model_name_or_path", type=str, default="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+                        help="HF model/tokenizer name (used as model when --config is omitted)")
     parser.add_argument("--block_size", type=int, default=512, help="Sequence length")
     parser.add_argument("--max_steps", type=int, default=1000)
     parser.add_argument("--output_dir", type=str, default="./hf_trainer_out")
@@ -185,17 +232,27 @@ def main():
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Enable gradient checkpointing (if supported)")
 
-    # Optional SIEVE-like random masking
-    parser.add_argument("--sieve_method", type=str, default="full", choices=["full", "random"], help="Token selection method")
-    parser.add_argument("--sieve_ratio", type=float, default=0.7, help="If using random, fraction of tokens to keep")
+    # SIEVE token selection
+    parser.add_argument("--sieve_method", type=str, default="full",
+                        choices=["full", "random", "sieve"],
+                        help="Token selection method: full (all tokens), random (baseline), sieve (adaptive multi-strategy)")
+    parser.add_argument("--sieve_ratio", type=float, default=0.7, help="Fraction of tokens to keep when using selection")
+    parser.add_argument("--sieve_rescore_every", type=int, default=50, help="SIEVE: re-score tokens every N steps")
 
     args = parser.parse_args()
 
     device = _detect_device()
     print(f"Device: {device}")
 
-    config_module = _load_config_module(args.config)
-    model = build_model_from_config(config_module, max_seq_len=args.block_size, device=device)
+    # --- Model loading ---
+    use_ramen = args.config is not None
+    if use_ramen:
+        config_module = _load_config_module(args.config)
+        model = build_model_from_config(config_module, max_seq_len=args.block_size, device=device)
+        print("Backend: ramenGPT")
+    else:
+        model = build_model_hf_native(args.model_name_or_path, bf16=args.bf16, fp16=args.fp16)
+        print("Backend: HF native")
 
     # Build dataset + tokenizer
     from datasets import load_dataset
@@ -203,7 +260,6 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     if tokenizer.pad_token is None:
-        # For GPT2, pad as eos
         tokenizer.pad_token = tokenizer.eos_token
 
     raw_ds = load_dataset(args.dataset, args.dataset_config)
@@ -254,50 +310,135 @@ def main():
         remove_unused_columns=False,  # we use input_ids in compute_loss; model has custom forward
     )
 
-    window_blocks = _get_window_blocks(args.window_size_blocks, device=device)
-
-    selector: Optional[RandomSelector] = None
+    selector = None
+    sieve_selector = None  # real SIEVE selector (separate from simple RandomSelector)
     if args.sieve_method == "random":
         selector = RandomSelector(ratio=args.sieve_ratio, device=device)
+        print(f"SIEVE enabled: method=random, ratio={args.sieve_ratio}")
+    elif args.sieve_method == "sieve":
+        from sieve_config import SieveConfig
+        from sieve_models import SieveSelector
+        sieve_cfg = SieveConfig(
+            select_ratio=args.sieve_ratio,
+            rescore_every=args.sieve_rescore_every,
+        )
+        sieve_selector = SieveSelector(sieve_cfg, device=str(device))
+        print(f"SIEVE enabled: method=sieve (adaptive), ratio={args.sieve_ratio}, rescore_every={args.sieve_rescore_every}")
 
-    class RamenTrainer(Trainer):
-        def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):  # type: ignore[override]
-            # inputs["input_ids"]: shape [B, T]; *args/**kwargs for Trainer API (e.g. num_items_in_batch)
-            input_ids = inputs["input_ids"]
-            # We enforce B==1 to match model.forward signature; but in case user sets B>1, flatten leading dim.
-            if input_ids.ndim == 2 and input_ids.size(0) > 1:
-                input_ids = input_ids.view(-1)
-            else:
-                input_ids = input_ids.squeeze(0)
+    # --- Trainer selection ---
+    if use_ramen:
+        window_blocks = _get_window_blocks(args.window_size_blocks, device=device)
 
-            # Shift for targets
-            src = input_ids[:-1].to(device)
-            tgt = input_ids[1:].to(device)
+        class RamenTrainer(Trainer):
+            def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):  # type: ignore[override]
+                # inputs["input_ids"]: shape [B, T]; *args/**kwargs for Trainer API (e.g. num_items_in_batch)
+                input_ids = inputs["input_ids"]
+                # We enforce B==1 to match model.forward signature; but in case user sets B>1, flatten leading dim.
+                if input_ids.ndim == 2 and input_ids.size(0) > 1:
+                    input_ids = input_ids.view(-1)
+                else:
+                    input_ids = input_ids.squeeze(0)
 
-            model = model.to(device)
-            model.train()
+                # Shift for targets
+                src = input_ids[:-1].to(device)
+                tgt = input_ids[1:].to(device)
 
-            if selector is not None:
-                mask = selector.get_token_mask(src)
-                loss = sieve_masked_loss(model, src, tgt, mask)
-                outputs = None
-            else:
-                loss = model(src, tgt, window_blocks)
-                outputs = None
+                model = model.to(device)
+                model.train()
 
-            return (loss, outputs) if return_outputs else loss
+                if selector is not None:
+                    mask = selector.get_token_mask(src)
+                    loss = sieve_masked_loss(model, src, tgt, mask)
+                    outputs = None
+                else:
+                    loss = model(src, tgt, window_blocks)
+                    outputs = None
 
-        def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
-            metrics = super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
-            key = f"{metric_key_prefix}_loss"
-            if key in metrics and math.isfinite(metrics[key]):
-                try:
-                    metrics[f"{metric_key_prefix}_perplexity"] = float(math.exp(metrics[key]))
-                except OverflowError:
-                    metrics[f"{metric_key_prefix}_perplexity"] = float("inf")
-            return metrics
+                return (loss, outputs) if return_outputs else loss
 
-    trainer = RamenTrainer(
+            def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
+                metrics = super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+                key = f"{metric_key_prefix}_loss"
+                if key in metrics and math.isfinite(metrics[key]):
+                    try:
+                        metrics[f"{metric_key_prefix}_perplexity"] = float(math.exp(metrics[key]))
+                    except OverflowError:
+                        metrics[f"{metric_key_prefix}_perplexity"] = float("inf")
+                return metrics
+
+        TrainerClass = RamenTrainer
+    else:
+        _hf_step = [0]  # mutable counter for SIEVE step tracking
+
+        class HFNativeTrainer(Trainer):
+            def compute_loss(self, model, inputs, return_outputs=False, *extra_args, **kwargs):
+                input_ids = inputs["input_ids"].to(device)
+                labels = input_ids.clone()
+
+                # Shift targets for scoring (predict next token)
+                shift_labels = labels[..., 1:].contiguous().view(-1)
+                seq_len = shift_labels.size(0)
+
+                if sieve_selector is not None:
+                    # Real SIEVE: adaptive multi-strategy selection
+                    # Get logits via forward pass
+                    outputs = model(input_ids=input_ids)
+                    logits = outputs.logits
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    flat_logits = shift_logits.view(-1, shift_logits.size(-1))
+
+                    # SIEVE scores tokens and returns a mask
+                    # We pass the shifted logits/targets directly
+                    mask = sieve_selector.get_token_mask(
+                        step=_hf_step[0],
+                        total_steps=args.max_steps,
+                        model=model,
+                        inputs=input_ids.view(-1)[:-1],  # src tokens
+                        targets=shift_labels,
+                        sliding_window_num_blocks=None,  # HF native, no sliding window
+                        train_loss=getattr(self, '_last_loss', 10.0),
+                    )
+                    _hf_step[0] += 1
+
+                    selected_logits = flat_logits[mask]
+                    selected_labels = shift_labels[mask]
+                    loss = F.cross_entropy(selected_logits, selected_labels, reduction="sum")
+                    num_selected = mask.sum().clamp(min=1).float()
+                    loss = loss * (float(seq_len) / num_selected) / float(seq_len)
+                    self._last_loss = loss.detach().item()
+
+                elif selector is not None:
+                    # Random baseline
+                    outputs = model(input_ids=input_ids)
+                    logits = outputs.logits
+                    mask = selector.get_token_mask(seq_len)
+                    loss = sieve_masked_loss_hf(logits, labels, mask)
+
+                else:
+                    # Full training
+                    outputs = model(input_ids=input_ids)
+                    logits = outputs.logits
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    loss = F.cross_entropy(
+                        shift_logits.view(-1, shift_logits.size(-1)),
+                        shift_labels,
+                    )
+
+                return (loss, outputs if 'outputs' in dir() else None) if return_outputs else loss
+
+            def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+                metrics = super().evaluate(eval_dataset=eval_dataset, ignore_keys=ignore_keys, metric_key_prefix=metric_key_prefix)
+                key = f"{metric_key_prefix}_loss"
+                if key in metrics and math.isfinite(metrics[key]):
+                    try:
+                        metrics[f"{metric_key_prefix}_perplexity"] = float(math.exp(metrics[key]))
+                    except OverflowError:
+                        metrics[f"{metric_key_prefix}_perplexity"] = float("inf")
+                return metrics
+
+        TrainerClass = HFNativeTrainer
+
+    trainer = TrainerClass(
         model=model,
         args=training_args,
         train_dataset=lm_ds["train"],

@@ -255,32 +255,51 @@ def main():
         print("Backend: HF native")
 
     # Build dataset + tokenizer
-    from datasets import load_dataset
+    import os
+    from datasets import load_dataset, load_from_disk
     from transformers import AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    raw_ds = load_dataset(args.dataset, args.dataset_config)
-    column = args.text_column
+    if os.path.isdir(args.dataset):
+        raw_ds = load_from_disk(args.dataset)
+    else:
+        raw_ds = load_dataset(args.dataset, args.dataset_config)
 
-    def tokenize_fn(examples):
-        return tokenizer(examples[column], return_attention_mask=False)
+    # Truncate dataset before tokenization if max_steps is set
+    if args.max_steps > 0:
+        tokens_needed = args.max_steps * args.per_device_train_batch_size * args.gradient_accumulation_steps * args.block_size
+        avg_tokens_per_example = 200  # conservative estimate
+        max_examples = int(tokens_needed / avg_tokens_per_example * 2)  # 2x margin
+        for split in raw_ds:
+            if len(raw_ds[split]) > max_examples:
+                raw_ds[split] = raw_ds[split].select(range(max_examples))
+        print(f"Truncated to ~{max_examples} examples per split (enough for {args.max_steps} steps)")
 
-    tokenized = raw_ds.map(tokenize_fn, batched=True, remove_columns=raw_ds["train"].column_names)
+    # Skip tokenization if dataset is already tokenized (e.g. from datasets/tokenize.py)
+    if "input_ids" in raw_ds["train"].column_names:
+        print("Dataset already tokenized, skipping tokenization")
+        lm_ds = raw_ds
+    else:
+        column = args.text_column
 
-    # Group into fixed-size blocks
-    def group_texts(examples):
-        concatenated = {k: sum(examples[k], []) for k in examples.keys()}
-        total_length = (len(concatenated["input_ids"]) // args.block_size) * args.block_size
-        result = {
-            k: [t[i : i + args.block_size] for i in range(0, total_length, args.block_size)]
-            for k, t in concatenated.items()
-        }
-        return result
+        def tokenize_fn(examples):
+            return tokenizer(examples[column], return_attention_mask=False)
 
-    lm_ds = tokenized.map(group_texts, batched=True)
+        tokenized = raw_ds.map(tokenize_fn, batched=True, remove_columns=raw_ds["train"].column_names)
+
+        def group_texts(examples):
+            concatenated = {k: sum(examples[k], []) for k in examples.keys()}
+            total_length = (len(concatenated["input_ids"]) // args.block_size) * args.block_size
+            result = {
+                k: [t[i : i + args.block_size] for i in range(0, total_length, args.block_size)]
+                for k, t in concatenated.items()
+            }
+            return result
+
+        lm_ds = tokenized.map(group_texts, batched=True)
 
     # HF Trainer setup
     from transformers import Trainer, TrainingArguments
@@ -380,25 +399,23 @@ def main():
                 seq_len = shift_labels.size(0)
 
                 if sieve_selector is not None:
-                    # Real SIEVE: adaptive multi-strategy selection
-                    # Get logits via forward pass
-                    outputs = model(input_ids=input_ids)
-                    logits = outputs.logits
-                    shift_logits = logits[..., :-1, :].contiguous()
-                    flat_logits = shift_logits.view(-1, shift_logits.size(-1))
-
-                    # SIEVE scores tokens and returns a mask
-                    # We pass the shifted logits/targets directly
+                    # 1. Score tokens and get mask (no grad, eval forward inside)
                     mask = sieve_selector.get_token_mask(
                         step=_hf_step[0],
                         total_steps=args.max_steps,
                         model=model,
-                        inputs=input_ids.view(-1)[:-1],  # src tokens
+                        inputs=input_ids,
                         targets=shift_labels,
-                        sliding_window_num_blocks=None,  # HF native, no sliding window
+                        sliding_window_num_blocks=None,
                         train_loss=getattr(self, '_last_loss', 10.0),
                     )
                     _hf_step[0] += 1
+
+                    # 2. Forward pass with grad for loss on selected tokens
+                    outputs = model(input_ids=input_ids)
+                    logits = outputs.logits
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    flat_logits = shift_logits.view(-1, shift_logits.size(-1))
 
                     selected_logits = flat_logits[mask]
                     selected_labels = shift_labels[mask]

@@ -191,15 +191,17 @@ class SieveSelector:
 
     def _get_logits(self, model, inputs, targets, sw_blocks=None) -> Tensor:
         if sw_blocks is None:
-            # HF native path: standard forward, logits returned directly
+            # HF native path: forward + shift for causal LM alignment
             model.eval()
             with torch.no_grad():
                 inp = inputs.unsqueeze(0) if inputs.dim() == 1 else inputs
                 outputs = model(input_ids=inp)
                 logits = outputs.logits
+                # Shift: logits[:-1] predicts targets[1:]
+                logits = logits[..., :-1, :].contiguous()
             model.train()
-            if logits.dim() == 3:
-                logits = logits.squeeze(0)
+            # Flatten to [B*(T-1), vocab]
+            logits = logits.view(-1, logits.size(-1))
             return logits.detach()
 
         # ramenGPT path: hook on lm_head + softcap

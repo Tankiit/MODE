@@ -1,0 +1,6 @@
+{
+  "vocab_size": 50257,
+  "seq_len": 512,
+  "dataset": "wikitext2",
+  "tokenizer": "gpt2"
+}

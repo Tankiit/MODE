@@ -219,10 +219,14 @@ assets/
 *.pt
 *.pth
 *.ckpt
+*.safetensors
 checkpoints/
 checkpoint*.pt
 checkpoint*.pth
 checkpoint*.ckpt
+hf_trainer_out/
+test_run/
+*.ipynb.bak
 
 # Data files
 *.bin

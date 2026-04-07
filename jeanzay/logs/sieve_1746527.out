@@ -1,0 +1,19 @@
+backend=cuda  dtype=torch.bfloat16
+[data] train: 2.4M tokens
+[data] val: 0.2M tokens
+step     0  loss=3.3481  grad=6.938  S_E=0.25
+step    50  loss=2.9411  grad=8.688  S_E=0.25
+step   100  loss=2.7147  grad=6.375  S_E=0.25
+step   150  loss=3.0690  grad=4.812  S_E=0.25
+step   200  loss=2.9134  grad=7.875  S_E=0.25
+step   250  loss=2.9219  grad=11.188  S_E=0.25
+step   300  loss=2.8849  grad=5.625  S_E=0.25
+step   350  loss=2.8260  grad=8.375  S_E=0.25
+step   400  loss=2.9549  grad=11.000  S_E=0.25
+step   450  loss=2.9334  grad=6.812  S_E=0.25
+  [final] val_ppl=24.07
+          val_ppl=24.07
+
+Final val PPL: 24.07
+Final bandit weights: S_E=0.250  S_U=0.250  S_L=0.250  S_D=0.250
+✗ Weights near-uniform — check eval_interval and reward signal

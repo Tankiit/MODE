@@ -116,7 +116,7 @@ def train(
                 log.update(sieve.log_dict())
             log_fn(log)
             history["loss"].append(prev_loss)
-            if sieve:
+            if sieve and hasattr(sieve, 'bandit'):
                 history["weights"].append(
                     sieve.bandit.expected_weights(
                         sieve.bandit._current_bin
@@ -133,6 +133,12 @@ def train(
                 sieve.on_eval(math.log(val_ppl))   # pass log-PPL as loss
 
             log_fn({"step": step, "val/ppl": val_ppl})
+
+    # Final evaluation
+    val_ppl = evaluate(model, val_ds, device, max_batches=50)
+    history["val_ppl"].append(val_ppl)
+    print(f"  [final] val_ppl={val_ppl:.2f}")
+    log_fn({"step": cfg.max_steps, "val/ppl": val_ppl})
 
     return history
 

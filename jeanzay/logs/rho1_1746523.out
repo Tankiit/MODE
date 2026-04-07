@@ -1,0 +1,17 @@
+backend=cuda  dtype=torch.bfloat16
+[data] train: 2.4M tokens
+[data] val: 0.2M tokens
+step     0  loss=2.8743  grad=6.469
+step    50  loss=2.6456  grad=4.188
+step   100  loss=2.5106  grad=4.969
+step   150  loss=2.4805  grad=4.781
+step   200  loss=2.6513  grad=5.156
+step   250  loss=2.4564  grad=5.344
+step   300  loss=2.4182  grad=4.875
+step   350  loss=2.4692  grad=4.281
+step   400  loss=2.5289  grad=4.469
+step   450  loss=2.4849  grad=5.094
+  [final] val_ppl=24.05
+          val_ppl=24.05
+
+Final val PPL: 24.05

@@ -21,6 +21,6 @@ mkdir -p logs
 python train_sieve.py \
     --dataset wikitext2 \
     --model gpt2 \
-    --steps 500 \
+    --steps 20000 \
     --baseline sieve \
     --seed 42

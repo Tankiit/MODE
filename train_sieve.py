@@ -4,7 +4,9 @@ python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500 --baseline rh
 python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500 --baseline clm
 python train_sieve.py --dataset owm       --model tinyllama --steps 200
 """
-import argparse, torch
+import argparse, random
+import numpy as np
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from sieve.config import SieveConfig
@@ -42,6 +44,12 @@ def main():
                    help="wandb project name (omit to disable)")
     p.add_argument("--seed",     type=int, default=42)
     args = p.parse_args()
+
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
 
     dev_cfg = get_cfg()
     device  = dev_cfg.device

@@ -234,3 +234,5 @@ test_run/
 data/shards/
 data/*.bin
 data/*.bin.index
+
+paper.tex

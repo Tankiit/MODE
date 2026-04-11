@@ -44,7 +44,7 @@ class MemmapDataset:
             self.ref_losses = np.memmap(rp, dtype=np.float32, mode="r")
 
         self.rng = np.random.default_rng(
-            42 if split == "train" else 43
+            cfg.seed if split == "train" else cfg.seed + 1
         )
         print(f"[data] {split}: {self.N/1e6:.1f}M tokens")
 

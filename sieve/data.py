@@ -25,8 +25,13 @@ class MemmapDataset:
     ):
         p         = Path(data_dir)
         self.arr  = np.memmap(p / f"{split}.bin", dtype=np.uint16, mode="r")
-        self.N    = len(self.arr)
+        full_N    = len(self.arr)
+        frac      = float(cfg.data_fraction) if split == "train" else 1.0
+        frac      = max(0.0, min(1.0, frac))
+        target    = int(full_N * frac)
         self.T    = cfg.seq_len
+        # Random windows must fit inside [0, N); need N >= T+2 for sample_batch
+        self.N    = max(self.T + 2, min(target, full_N))
 
         with open(p / "meta.json") as f:
             self.meta = json.load(f)
@@ -46,7 +51,16 @@ class MemmapDataset:
         self.rng = np.random.default_rng(
             cfg.seed if split == "train" else cfg.seed + 1
         )
-        print(f"[data] {split}: {self.N/1e6:.1f}M tokens")
+        frac_note = f" (data_fraction={frac:.2g})" if split == "train" and frac < 1.0 else ""
+        print(f"[data] {split}: {self.N/1e6:.1f}M tokens{frac_note}")
+
+    def steps_per_epoch(self, batch_size: int) -> int:
+        """
+        Approximate optimizer steps for one pass over the train token prefix.
+        Each step consumes batch_size * seq_len token positions; random sampling
+        is with replacement, so this is a conventional scale, not a strict epoch.
+        """
+        return max(1, int(math.ceil(self.N / (batch_size * self.T))))
 
     def sample_batch(
         self,

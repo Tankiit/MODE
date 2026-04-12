@@ -25,8 +25,13 @@ def selective_loss(
     shift_labels = input_ids[:, 1:].contiguous()      # [B, T-1]
 
     if mask is not None:
-        # Unselected positions → ignore_index (excluded from sum)
-        shift_labels = shift_labels.masked_fill(~mask[:, 1:], ignore_index)
+        m = mask[:, 1:]  # align with shift_labels [B, T-1]
+        # If nothing selected (should not happen after MaskCache fix), fall back
+        # to full CLM so cross_entropy is not all-ignore → NaN backward.
+        if not m.any():
+            mask = None
+        else:
+            shift_labels = shift_labels.masked_fill(~m, ignore_index)
 
     # reduction="sum" so we control the denominator precisely
     loss = F.cross_entropy(

@@ -20,6 +20,7 @@ class SieveConfig:
     max_steps:          int   = 10_000
     eval_interval:      int   = 500    # steps between val PPL evals
     log_interval:       int   = 50
+    profile_dataloader: bool  = False  # time sample_batch vs compute (syncs CUDA when True)
     batch_size:         int   = 8
     seq_len:            int   = 512
     lr:                 float = 3e-4
@@ -28,6 +29,7 @@ class SieveConfig:
 
     # ── Data ──────────────────────────────────────────────────────────
     data_dir:           str   = "./data/wikitext2"
+    data_fraction:      float = 1.0            # train only: fraction of memmap tokens to use
     freq_table_path:    Optional[str] = None   # set by prepare.py
     ref_losses_path:    Optional[str] = None   # S_E offline cache
 

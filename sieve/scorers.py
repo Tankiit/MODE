@@ -94,9 +94,11 @@ class TokenScorers:
         device:    torch.device,
     ) -> torch.Tensor:             # [B, T]
         if self.freq_table is not None:
-            # Corpus-level log-IDF — O(B*T) lookup, no recomputation
-            # Always convert to float32 (freq_table may be float16/64)
-            return self.freq_table[input_ids.cpu()].to(device, dtype=torch.float32)
+            # Corpus-level log-IDF — O(B*T) lookup, no recomputation.
+            # Keep table on the same device to avoid D2H/H2D thrash.
+            if self.freq_table.device != device:
+                self.freq_table = self.freq_table.to(device, dtype=torch.float32)
+            return self.freq_table[input_ids]
         else:
             # Within-batch fallback (high variance — use corpus table in prod)
             B, T   = input_ids.shape

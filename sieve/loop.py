@@ -39,10 +39,12 @@ def evaluate(
         for batch in dataset.val_batches(8, device):
             ids  = batch["input_ids"]
             B, T = ids.shape
-            out  = model(input_ids=ids, labels=None, use_cache=False)
+            # Autocast where available; cast logits to float32 for CE
+            with torch.autocast(device.type, enabled=(device.type == 'cuda')):
+                out = model(input_ids=ids, labels=None, use_cache=False)
             V    = out.logits.size(-1)
             nll  = F.cross_entropy(
-                out.logits[:, :-1].reshape(-1, V),
+                out.logits.float()[:, :-1].reshape(-1, V),
                 ids[:, 1:].reshape(-1),
                 reduction="sum",
             )
@@ -130,11 +132,13 @@ def train(
         N["data"] += 1
 
         # ── Forward — labels=None so we control the loss ───────────────
-        optim.zero_grad()
+        optim.zero_grad(set_to_none=True)
         t0 = perf_counter()
         with dev_cfg.autocast:
-            out    = model(input_ids=input_ids, labels=None, use_cache=False)
-        logits = out.logits.float()   # always fp32 for scoring
+            out = model(input_ids=input_ids, labels=None, use_cache=False)
+        # Avoid unconditional upcast to float32 on every step. Only cast
+        # when we actually rescore; otherwise keep the model dtype.
+        logits = out.logits
         T["fwd"] += perf_counter() - t0
         N["fwd"] += 1
 
@@ -143,13 +147,16 @@ def train(
         is_rescore = (sieve is not None and
                       sieve.mask_cache.needs_rescore(step))
         if sieve is not None:
-            mask = sieve.score_and_mask(logits, input_ids, ref_losses)
+            if is_rescore:
+                mask = sieve.score_and_mask(logits.float(), input_ids, ref_losses)
+            else:
+                mask = sieve.mask_cache.mask
         else:
             mask = None
         t_score_step = perf_counter() - t0
-        T["score"] += t_score_step
-        N["score"] += 1
         if is_rescore:
+            T["score"] += t_score_step
+            N["score"] += 1
             T["score_rescore"] += t_score_step
             N["score_rescore"] += 1
 
@@ -163,7 +170,9 @@ def train(
             model.parameters(), cfg.grad_clip
         ).item()
         optim.step()
-        if device.type == "mps":
+        # Synchronising MPS every step hurts throughput significantly.
+        # Keep it only when profiling is explicitly enabled.
+        if device.type == "mps" and cfg.profile_dataloader:
             torch.mps.synchronize()
         T["bwd"] += perf_counter() - t0
         N["bwd"] += 1

@@ -70,12 +70,25 @@ class MemmapDataset:
         """Random batch. Returns input_ids [B,T] and optionally ref_losses [B,T]."""
         T       = self.T
         offsets = self.rng.integers(0, self.N - T - 1, size=batch_size)
-        ids = np.stack([self.arr[o:o+T].astype(np.int64) for o in offsets])
-        out = {"input_ids": torch.from_numpy(ids).to(device)}
+        ids     = np.stack([self.arr[o:o+T].astype(np.int64) for o in offsets])
+
+        # Build on CPU first; use pinned memory + non_blocking H2D on CUDA
+        input_ids = torch.from_numpy(ids)
+        if device.type == "cuda":
+            input_ids = input_ids.pin_memory().to(device, non_blocking=True)
+        else:
+            input_ids = input_ids.to(device)
+
+        out = {"input_ids": input_ids}
 
         if self.ref_losses is not None:
             rl = np.stack([self.ref_losses[o:o+T] for o in offsets])
-            out["ref_losses"] = torch.from_numpy(rl.copy()).to(device)
+            ref = torch.from_numpy(rl.copy())  # ensure contiguous float32
+            if device.type == "cuda":
+                ref = ref.pin_memory().to(device, non_blocking=True)
+            else:
+                ref = ref.to(device)
+            out["ref_losses"] = ref
 
         return out
 

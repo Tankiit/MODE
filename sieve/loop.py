@@ -114,6 +114,22 @@ def train(
 
     t_wall = time.time()
 
+    # Enable fused loss via model.loss on CUDA if Liger is active.
+    # We detect by backend; model was patched in train_sieve.py.
+    use_fused_loss = (dev_cfg.backend == "cuda")
+
+    def _build_masked_labels(input_ids: torch.Tensor,
+                             mask: Optional[torch.Tensor],
+                             ignore_index: int = -100) -> torch.Tensor:
+        B, T = input_ids.shape
+        labels = input_ids.clone()
+        # First token never contributes (standard CLM shift)
+        labels[:, 0] = ignore_index
+        if mask is not None:
+            m = mask[:, 1:]
+            labels[:, 1:] = torch.where(m, labels[:, 1:], torch.full_like(labels[:, 1:], ignore_index))
+        return labels
+
     for step in pbar:
 
         # ── Hook 1: sample bandit weights if rescore due ──────────────
@@ -134,34 +150,75 @@ def train(
         # ── Forward — labels=None so we control the loss ───────────────
         optim.zero_grad(set_to_none=True)
         t0 = perf_counter()
-        with dev_cfg.autocast:
-            out = model(input_ids=input_ids, labels=None, use_cache=False)
-        # Avoid unconditional upcast to float32 on every step. Only cast
-        # when we actually rescore; otherwise keep the model dtype.
-        logits = out.logits
-        T["fwd"] += perf_counter() - t0
-        N["fwd"] += 1
+        is_rescore = (sieve is not None and sieve.mask_cache.needs_rescore(step))
 
-        # ── Hook 2: score tokens, get/reuse mask ──────────────────────
-        t0         = perf_counter()
-        is_rescore = (sieve is not None and
-                      sieve.mask_cache.needs_rescore(step))
-        if sieve is not None:
-            if is_rescore:
-                mask = sieve.score_and_mask(logits.float(), input_ids, ref_losses)
+        if use_fused_loss:
+            # Use model's internal loss (patched by Liger) with masked labels.
+            if sieve is not None and is_rescore:
+                # Forward once to get hidden states for scoring.
+                with dev_cfg.autocast:
+                    out = model(input_ids=input_ids, labels=None,
+                                output_hidden_states=True, use_cache=False, return_dict=True)
+                # Build logits for scoring only at rescore steps.
+                logits = model.lm_head(out.hidden_states[-1]).float()
+                T["fwd"] += perf_counter() - t0
+                N["fwd"] += 1
+
+                # ── Hook 2: score and update mask
+                t1 = perf_counter()
+                mask = sieve.score_and_mask(logits, input_ids, ref_losses)
+                t_score_step = perf_counter() - t1
+                T["score"] += t_score_step
+                N["score"] += 1
+                T["score_rescore"] += t_score_step
+                N["score_rescore"] += 1
+
+                # Second forward to compute fused loss with masked labels.
+                labels = _build_masked_labels(input_ids, mask)
+                t2 = perf_counter()
+                with dev_cfg.autocast:
+                    out2 = model(input_ids=input_ids, labels=labels,
+                                 output_hidden_states=False, use_cache=False, return_dict=True)
+                T["fwd"] += perf_counter() - t2
+                N["fwd"] += 1
+                loss = out2.loss
             else:
-                mask = sieve.mask_cache.mask
+                # Not a rescore step or no sieve: reuse cached mask (or None)
+                mask = sieve.mask_cache.mask if sieve is not None else None
+                labels = _build_masked_labels(input_ids, mask)
+                with dev_cfg.autocast:
+                    out = model(input_ids=input_ids, labels=labels,
+                                output_hidden_states=False, use_cache=False, return_dict=True)
+                logits = None
+                T["fwd"] += perf_counter() - t0
+                N["fwd"] += 1
+                loss = out.loss
         else:
-            mask = None
-        t_score_step = perf_counter() - t0
-        if is_rescore:
-            T["score"] += t_score_step
-            N["score"] += 1
-            T["score_rescore"] += t_score_step
-            N["score_rescore"] += 1
+            # Standard path: compute logits, then selective loss.
+            with dev_cfg.autocast:
+                out = model(input_ids=input_ids, labels=None, use_cache=False)
+            logits = out.logits
+            T["fwd"] += perf_counter() - t0
+            N["fwd"] += 1
 
-        # ── Loss: gradient-invariant selective CE ─────────────────────
-        loss = selective_loss(logits, input_ids, mask)
+            # ── Hook 2: score tokens, get/reuse mask ────────────────
+            t1 = perf_counter()
+            if sieve is not None:
+                if is_rescore:
+                    mask = sieve.score_and_mask(logits.float(), input_ids, ref_losses)
+                else:
+                    mask = sieve.mask_cache.mask
+            else:
+                mask = None
+            t_score_step = perf_counter() - t1
+            if is_rescore:
+                T["score"] += t_score_step
+                N["score"] += 1
+                T["score_rescore"] += t_score_step
+                N["score_rescore"] += 1
+
+            # ── Loss: gradient-invariant selective CE ───────────────
+            loss = selective_loss(logits, input_ids, mask)
 
         # ── Backward + optimizer ──────────────────────────────────────
         t0 = perf_counter()

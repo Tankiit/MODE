@@ -120,6 +120,16 @@ def main():
         attn_implementation    = "sdpa",
     ).to(device).train()
 
+    # Optional: apply Liger fused kernels on CUDA for faster backward.
+    # Safe no-op on non-CUDA or if package unavailable.
+    if dev_cfg.backend == "cuda":
+        try:
+            from liger_kernel.transformers import apply_liger_kernel_to_gpt2
+            apply_liger_kernel_to_gpt2(model)
+            print("[liger] Applied fused kernels to GPT-2 (CUDA)")
+        except Exception as e:
+            print(f"[liger] Not enabled: {e}")
+
     # ── Baseline construction ─────────────────────────────────────────
     sieve = _build_selector(args.baseline, cfg, device)
 

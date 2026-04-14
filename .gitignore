@@ -215,6 +215,9 @@ assets/
 *.md
 !CLAUDE.md
 
+# Hugging Face hub cache (local)
+hf_cache/
+
 # Model checkpoints
 *.pt
 *.pth

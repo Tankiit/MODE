@@ -33,9 +33,11 @@ MODEL_NAMES = {
 }
 
 DATASET_DIRS = {
-    "wikitext2":  "./data/wikitext2",
+    "wikitext2":   "./data/wikitext2",
     "wikitext103": "./data/wikitext103",
-    "owm":        "./data/owm",
+    "c4_1b":       "./data/c4_1b",
+    "owt":         "./data/owt",
+    "owm":         "./data/owm",
 }
 
 BATCH_SIZES = {
@@ -120,13 +122,15 @@ def main():
         attn_implementation    = "sdpa",
     ).to(device).train()
 
-    # Optional: apply Liger fused kernels on CUDA for faster backward.
-    # Safe no-op on non-CUDA or if package unavailable.
-    if dev_cfg.backend == "cuda":
+    # Liger: fused LM-head / CE backward on CUDA for GPT-2 (often ~40–60% faster).
+    # Scoring (SIEVE hooks) unchanged — same logits path. Install: pip install liger-kernel
+    # or pyproject extra: pip install -e ".[liger]". Not applicable to TinyLlama.
+    if dev_cfg.backend == "cuda" and args.model in ("gpt2", "gpt2l"):
         try:
             from liger_kernel.transformers import apply_liger_kernel_to_gpt2
+
             apply_liger_kernel_to_gpt2(model)
-            print("[liger] Applied fused kernels to GPT-2 (CUDA)")
+            print("[liger] Fused kernels applied to GPT-2 (CUDA)")
         except Exception as e:
             print(f"[liger] Not enabled: {e}")
 

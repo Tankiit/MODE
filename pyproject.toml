@@ -13,12 +13,17 @@ dependencies = [
     "tiktoken",
     "numpy",
     "torch",
+    "transformers",
     "huggingface-hub",
     "kernels",
     "einops",
     "setuptools",
     "wandb",
 ]
+
+[project.optional-dependencies]
+# CUDA fused kernels for GPT-2 LM head / CE (train_sieve applies when installed + gpt2 model)
+liger = ["liger-kernel"]
 
 [tool.setuptools]
 packages = []

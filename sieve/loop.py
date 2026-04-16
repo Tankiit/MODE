@@ -155,12 +155,12 @@ def train(
         if use_fused_loss:
             # Use model's internal loss (patched by Liger) with masked labels.
             if sieve is not None and is_rescore:
-                # Forward once to get hidden states for scoring.
+                # Forward once to get logits for scoring.
                 with dev_cfg.autocast:
                     out = model(input_ids=input_ids, labels=None,
-                                output_hidden_states=True, use_cache=False, return_dict=True)
-                # Build logits for scoring only at rescore steps.
-                logits = model.lm_head(out.hidden_states[-1]).float()
+                                output_hidden_states=False, use_cache=False, return_dict=True)
+                # Get logits from output for scoring at rescore steps.
+                logits = out.logits.float()
                 T["fwd"] += perf_counter() - t0
                 N["fwd"] += 1
 

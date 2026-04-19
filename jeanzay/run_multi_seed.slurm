@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --time=20:00:00
 #SBATCH --array=42-46
-#SBATCH --output=logs/multiple_seed/%x_s%a_%A.out
-#SBATCH --error=logs/multiple_seed/%x_s%a_%A.err
+#SBATCH --output=jeanzay/logs/multiple_seed/%x_s%a_%A.out
+#SBATCH --error=jeanzay/logs/multiple_seed/%x_s%a_%A.err
 #
 # Run 5 seeds (42..46) of one baseline as a SLURM job array.
 #
@@ -23,10 +23,10 @@ source "$SCRATCH/venvs/sieve/bin/activate"
 export HF_HUB_OFFLINE=1
 
 cd "$WORK/SIEVE"
-mkdir -p logs/multiple_seed
+mkdir -p jeanzay/logs/multiple_seed
 
 python train_sieve.py \
-    --dataset wikitext2 \
+    --dataset owm \
     --model gpt2 \
     --steps 20000 \
     --baseline "$METHOD" \

@@ -1,6 +1,5 @@
 """
-python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500
-python train_sieve.py --dataset wikitext2 --model gpt2 --epochs 3 --data_fraction 0.5 --profile_data
+python train_sieve.py --dataset wikitext2 --model gpt2 --steps 50
 python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500 --baseline rho1
 python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500 --baseline clm
 python train_sieve.py --dataset owm       --model tinyllama --steps 200

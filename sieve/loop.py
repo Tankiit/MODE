@@ -266,7 +266,7 @@ def train(
                 "ppl":     f"{last_val_ppl:.1f}",
                 "score%":  f"{score_pct:.2f}",
             }
-            if sieve is not None:
+            if sieve is not None and hasattr(sieve, "bandit"):
                 ew  = sieve.bandit.expected_weights(sieve.bandit._current_bin)
                 # dominant strategy — the paper's key interpretability signal
                 pf["dom"] = ["S_E","S_U","S_L","S_D"][int(ew.argmax())]

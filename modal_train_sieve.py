@@ -137,7 +137,7 @@ def _parse_train_log(log_path: Path) -> dict:
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="A100-40GB",
     timeout=3 * 3600,
     volumes={"/results": volume_results, "/data": volume_data},
     secrets=_function_secrets,
@@ -146,10 +146,11 @@ def _parse_train_log(log_path: Path) -> dict:
 def train_remote(train_cli: str = DEFAULT_CLI) -> dict:
     import os
 
+
     run_name = _derive_run_name(train_cli)
     run_dir = Path(f"/results/{run_name}")
     run_dir.mkdir(parents=True, exist_ok=True)
-
+    volume_data.reload()
     save_flags: list[str] = []
     if "--save_dir" not in train_cli:
         save_flags.append(f"--save_dir={run_dir / 'checkpoints'}")

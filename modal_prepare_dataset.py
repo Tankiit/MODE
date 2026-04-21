@@ -129,7 +129,8 @@ def prepare(datasets: list[str] = ["wikitext103"],
 
         # ── Idempotence check with completeness verification ──────────
         target_train = meta.get("train_tokens_target")
-        if train_bin.exists() and val_bin.exists() and freq_pt.exists():
+        meta_path    = out / "meta.json" 
+        if train_bin.exists() and val_bin.exists() and freq_pt.exists() and meta_path.exists():
             n = len(np.memmap(train_bin, dtype=DTYPE, mode="r"))
             # Accept if target is None (whole-split) OR we hit >= 95% of target
             is_complete = (target_train is None) or (n >= 0.95 * target_train)
@@ -145,7 +146,8 @@ def prepare(datasets: list[str] = ["wikitext103"],
                 freq_pt.unlink()
                 if val_bin.exists():
                     val_bin.unlink()
-
+                if meta_path.exists():
+                    meta_path.unlink()    
         out.mkdir(parents=True, exist_ok=True)
 
         # ── Train split ────────────────────────────────────────────────
@@ -205,6 +207,19 @@ def prepare(datasets: list[str] = ["wikitext103"],
             torch.save(torch.from_numpy(inv_freq).float(), freq_pt)
             print(f"[prepare]   freq.pt vocab={vocab_size}  "
                   f"mean={inv_freq.mean():.3f}  max={inv_freq.max():.1f}")
+        meta_path = out / "meta.json"
+        if not meta_path.exists():
+            print(f"[prepare] building {ds_key}/meta.json")
+            import json
+            meta_json = {
+                "vocab_size": int(vocab_size),
+                "seq_len":    1024,              # ← sensible default, overridden by cfg anyway
+                "dataset":    ds_key,
+                "tokenizer":  tokenizer_model,
+                "dtype":      DTYPE,             # documents the on-disk format
+            }
+            meta_path.write_text(json.dumps(meta_json, indent=2))
+            print(f"[prepare]   meta.json written: {meta_json}")
 
         n_train = len(np.memmap(train_bin, dtype=DTYPE, mode="r"))
         n_val   = len(np.memmap(val_bin,   dtype=DTYPE, mode="r"))

@@ -22,7 +22,7 @@ class SieveConfig:
     log_interval:       int   = 50
     profile_dataloader: bool  = False  # time sample_batch vs compute (syncs CUDA when True)
     batch_size:         int   = 8
-    seq_len:            int   = 512
+    seq_len:            int   = 1024
     lr:                 float = 3e-4
     grad_clip:          float = 1.0
     seed:               int   = 42

@@ -1,6 +1,6 @@
 """Single source of truth for all hyperparameters."""
-from dataclasses import dataclass, field
-from typing import Optional, List
+from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -39,3 +39,17 @@ class SieveConfig:
     # ── Logging ───────────────────────────────────────────────────────
     wandb_project:      Optional[str] = None   # None = no wandb
     run_name:           Optional[str] = None
+
+    # ── Checkpoints (optional; sieve/loop.py) ─────────────────────────
+    save_dir:           Optional[str] = None
+    save_interval:      int   = 0       # 0 = only periodic-off; final ckpt still when save_dir set
+    max_checkpoints:    int   = 0       # 0 = keep all
+
+    # ── Early stopping (sieve/patience.PatienceMonitor) ────────────────
+    patience_enable:        bool   = False
+    patience_window:        int    = 5
+    patience_min_steps:     int    = 5000
+    patience_ppl_tol:       float  = 0.005
+    patience_weight_tol:   float  = 0.05
+    patience_entropy_tol: float  = 0.05
+    patience_mode:          str    = "2_of_3"  # 2_of_3 | ppl_only | weights_only | entropy_only

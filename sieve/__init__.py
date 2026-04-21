@@ -8,6 +8,7 @@ optimization over multiple scoring strategies.
 from .config import SieveConfig
 from .state import SieveState
 from .loop import train, evaluate
+from .patience import PatienceMonitor
 from .rho1 import Rho1Baseline
 from .device import get_cfg
 
@@ -17,6 +18,7 @@ __all__ = [
     "SieveState",
     "train",
     "evaluate",
+    "PatienceMonitor",
     "Rho1Baseline",
     "get_cfg",
 ]

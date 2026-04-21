@@ -66,6 +66,31 @@ def main():
                         "scalarization=fixed equal weights  su/sd_only=ablations")
     p.add_argument("--wandb",    default=None)
     p.add_argument("--seed",     type=int, default=42)
+    p.add_argument("--save_dir", default=None,
+               help="Where to save checkpoints. None = don't save.")
+    p.add_argument("--save_interval", type=int, default=0,
+               help="Save every N steps (must be multiple of eval_interval). "
+                    "0 = only save final.")
+    p.add_argument("--max_checkpoints", type=int, default=0,
+               help="Keep only the K most recent. 0 = keep all. "
+                    "ckpt-best is always protected.")
+    p.add_argument(
+        "--patience",
+        action="store_true",
+        help="Enable patience-based early stopping (sieve/patience.py).",
+    )
+    p.add_argument("--patience_window", type=int, default=5)
+    p.add_argument("--patience_min_steps", type=int, default=5000)
+    p.add_argument("--patience_ppl_tol", type=float, default=0.005)
+    p.add_argument("--patience_weight_tol", type=float, default=0.05)
+    p.add_argument("--patience_entropy_tol", type=float, default=0.05)
+    p.add_argument("--run_name", default=None,
+               help="Override auto-generated run name (for volume/wandb)")
+    p.add_argument(
+        "--patience_mode",
+        default="2_of_3",
+        choices=["2_of_3", "ppl_only", "weights_only", "entropy_only"],
+    )
     args = p.parse_args()
 
     random.seed(args.seed)
@@ -86,6 +111,16 @@ def main():
         max_steps          = args.steps,
         batch_size         = BATCH_SIZES[args.model],
         selection_ratio    = args.alpha,
+        save_dir           = args.save_dir,
+        save_interval      = args.save_interval,
+        max_checkpoints    = args.max_checkpoints,
+        patience_enable      = args.patience,
+        patience_window      = args.patience_window,
+        patience_min_steps   = args.patience_min_steps,
+        patience_ppl_tol     = args.patience_ppl_tol,
+        patience_weight_tol  = args.patience_weight_tol,
+        patience_entropy_tol = args.patience_entropy_tol,
+        patience_mode        = args.patience_mode,
         data_fraction      = args.data_fraction,
         seed               = args.seed,
         wandb_project      = args.wandb,

@@ -12,7 +12,9 @@ PATCH: Fine-grained per-component timing added.
   - Profiling adds ~0.05ms/step (negligible) via perf_counter
 """
 from __future__ import annotations
+import json as _json
 import math, time
+from pathlib import Path
 from time import perf_counter
 from collections import defaultdict
 import torch
@@ -24,6 +26,56 @@ from .device import DeviceCfg
 from .data import MemmapDataset
 from .state import SieveState
 from .loss import selective_loss
+from .patience import PatienceMonitor
+
+
+def _dirichlet_entropy(bandit, bin_idx: int) -> Optional[float]:
+    """
+    Exact H(Dir(α)) for the current context bin when scipy is available.
+    Returns None on failure — caller may fall back to ``posterior_entropy``.
+    """
+    try:
+        if not hasattr(bandit, "alpha"):
+            return None
+        import numpy as np
+        from scipy.special import digamma, gammaln
+
+        a = np.asarray(bandit.alpha[bin_idx], dtype=np.float64).ravel()
+        a0 = float(a.sum())
+        k = int(a.size)
+        if not math.isfinite(a0) or a0 <= 0 or k < 1:
+            return None
+        log_b = float(gammaln(a).sum() - gammaln(a0))
+        term1 = (a0 - k) * float(digamma(a0))
+        term2 = float(((a - 1.0) * digamma(a)).sum())
+        return float(log_b + term1 - term2)
+    except Exception:
+        return None
+
+
+def _has_bandit(sieve: Optional[SieveState]) -> bool:
+    """
+    True iff the selector exposes a bandit interface (SIEVE, scalarization,
+    su_only, sd_only). False for Rho-1 (single-actor) and CLM (no selector).
+
+    This is the duck-type check to use anywhere we touch sieve.bandit.
+    """
+    return (
+        sieve is not None
+        and hasattr(sieve, "bandit")
+        and getattr(sieve, "bandit", None) is not None
+    )
+
+
+def _collect_bandit_state(
+    sieve: Optional[SieveState], history: dict
+) -> Optional[dict]:
+    if not _has_bandit(sieve):
+        return None
+    return {
+        "alpha": getattr(sieve.bandit, "alpha", None),
+        "history": history.get("weights", []),
+    }
 
 
 def evaluate(
@@ -55,6 +107,96 @@ def evaluate(
                 break
     model.train()
     return math.exp(total_nll / max(total_tok, 1))
+
+
+def _save_checkpoint(
+    model: torch.nn.Module,
+    step: int,
+    save_dir: Path,
+    val_ppl: float,
+    bandit_state: Optional[dict] = None,
+    is_best: bool = False,
+) -> None:
+    """
+    Save an HF-compatible checkpoint directory.
+
+    Layout written:
+      save_dir/ckpt-step{step:06d}/
+        pytorch_model.bin     ← state_dict
+        metadata.json         ← step, val_ppl, wall_time
+    And optionally a symlink save_dir/ckpt-best → ckpt-step{best_step}.
+
+    Uses state_dict (not full HF save_pretrained) to avoid saving tokenizer
+    and config per checkpoint. Config + tokenizer live at save_dir root,
+    written ONCE at start of training.
+    """
+    ckpt_dir = save_dir / f"ckpt-step{step:06d}"
+    ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+    torch.save(model.state_dict(), ckpt_dir / "pytorch_model.bin")
+
+    meta = {
+        "step": step,
+        "val_ppl": float(val_ppl),
+        "timestamp": time.time(),
+    }
+    if bandit_state is not None:
+        torch.save(bandit_state, ckpt_dir / "bandit_state.pt")
+        meta["has_bandit_state"] = True
+
+    (ckpt_dir / "metadata.json").write_text(_json.dumps(meta, indent=2))
+
+    if is_best:
+        best_link = save_dir / "ckpt-best"
+        if best_link.exists() or best_link.is_symlink():
+            best_link.unlink()
+        best_link.symlink_to(ckpt_dir.name)
+
+
+def _init_save_dir(
+    model: torch.nn.Module,
+    save_dir: Path,
+    model_name: str,
+) -> None:
+    """Write config + tokenizer to save_dir root, ONCE per run."""
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    if hasattr(model, "config"):
+        model.config.save_pretrained(save_dir)
+
+    try:
+        from transformers import AutoTokenizer
+
+        tok = AutoTokenizer.from_pretrained(model_name)
+        tok.save_pretrained(save_dir)
+    except Exception as e:
+        print(f"[ckpt] tokenizer save failed (non-fatal): {e}")
+
+
+def _prune_checkpoints(
+    save_dir: Path,
+    max_keep: int,
+    protected: set[str],
+) -> None:
+    """
+    Keep only the `max_keep` most recent checkpoints, plus anything in
+    `protected` (typically the best step directory name).
+    """
+    if max_keep <= 0:
+        return
+    ckpts = sorted(
+        save_dir.glob("ckpt-step*"),
+        key=lambda p: int(p.name.replace("ckpt-step", "")),
+    )
+    if len(ckpts) <= max_keep:
+        return
+    to_delete = ckpts[:-max_keep]
+    for c in to_delete:
+        if c.name in protected:
+            continue
+        for f in c.iterdir():
+            f.unlink()
+        c.rmdir()
 
 
 def train(
@@ -100,8 +242,35 @@ def train(
     prev_loss    = 1.0
     prev_grad    = 0.0
     last_val_ppl = float("nan")
+    best_ppl     = float("inf")
+    best_step    = -1
 
     log_fn = _make_logger(cfg)
+
+    save_dir: Optional[Path] = None
+    if getattr(cfg, "save_dir", None):
+        save_dir = Path(cfg.save_dir)
+        _init_save_dir(model, save_dir, cfg.model_name)
+        print(f"[ckpt] writing to {save_dir}")
+
+    save_interval = getattr(cfg, "save_interval", 0)
+    max_keep      = getattr(cfg, "max_checkpoints", 0)
+
+    patience: Optional[PatienceMonitor] = None
+    if getattr(cfg, "patience_enable", False):
+        effective_min = max(cfg.patience_min_steps, 10 * cfg.eval_interval)
+        patience = PatienceMonitor(
+            window=cfg.patience_window,
+            min_steps=effective_min,
+            ppl_tol=cfg.patience_ppl_tol,
+            weight_tol=cfg.patience_weight_tol,
+            entropy_tol=cfg.patience_entropy_tol,
+            mode=cfg.patience_mode,
+        )
+        print(
+            f"[patience] enabled: mode={cfg.patience_mode} "
+            f"window={cfg.patience_window} min_steps={effective_min}"
+        )
 
     # ── Timing accumulators ────────────────────────────────────────────
     T = defaultdict(float)   # cumulative seconds per component
@@ -113,6 +282,7 @@ def train(
                  if _use_tqdm else step_range
 
     t_wall = time.time()
+    pf: dict = {}
 
     # Enable fused loss via model.loss on CUDA if Liger is active.
     # We detect by backend; model was patched in train_sieve.py.
@@ -130,7 +300,11 @@ def train(
             labels[:, 1:] = torch.where(m, labels[:, 1:], torch.full_like(labels[:, 1:], ignore_index))
         return labels
 
+    stopped_early = False
+    n_loop_steps = 0
+
     for step in pbar:
+        n_loop_steps = step + 1
 
         # ── Hook 1: sample bandit weights if rescore due ──────────────
         t0 = perf_counter()
@@ -249,7 +423,7 @@ def train(
                 log.update(sieve.log_dict())
             log_fn(log)
             history["loss"].append(prev_loss)
-            if sieve is not None and hasattr(sieve, "bandit"):
+            if _has_bandit(sieve):
                 history["weights"].append(
                     sieve.bandit.expected_weights(
                         sieve.bandit._current_bin
@@ -266,10 +440,10 @@ def train(
                 "ppl":     f"{last_val_ppl:.1f}",
                 "score%":  f"{score_pct:.2f}",
             }
-            if sieve is not None and hasattr(sieve, "bandit"):
-                ew  = sieve.bandit.expected_weights(sieve.bandit._current_bin)
+            if _has_bandit(sieve):
+                ew = sieve.bandit.expected_weights(sieve.bandit._current_bin)
                 # dominant strategy — the paper's key interpretability signal
-                pf["dom"] = ["S_E","S_U","S_L","S_D"][int(ew.argmax())]
+                pf["dom"] = ["S_E", "S_U", "S_L", "S_D"][int(ew.argmax())]
             pbar.set_postfix(pf)
 
         # ── Evaluation + Hook 3 ───────────────────────────────────────
@@ -278,22 +452,100 @@ def train(
             last_val_ppl = val_ppl
             history["val_ppl"].append(val_ppl)
             print(f"\n  step {step:5d}  val_ppl={val_ppl:.2f}"
-                  + (f"  dom={pf.get('dom','?')}" if sieve else ""))
+                  + (f"  dom={pf.get('dom', '?')}" if _has_bandit(sieve) else ""))
+
+            w_snap: Optional[torch.Tensor] = None
+            ent_snap: Optional[float] = None
+            if _has_bandit(sieve):
+                b = sieve.bandit._current_bin
+                ew = sieve.bandit.expected_weights(b)
+                w_snap = torch.tensor(ew, dtype=torch.float32)
+                ent_snap = _dirichlet_entropy(sieve.bandit, b)
+                if ent_snap is None:
+                    ent_snap = float(sieve.bandit.posterior_entropy(b))
+
+            if patience is not None:
+                patience.update(step, val_ppl, w_snap, ent_snap)
 
             if sieve is not None:
                 sieve.on_eval(math.log(val_ppl))   # pass log-PPL as proxy loss
 
-            log_fn({"step": step, "val/ppl": val_ppl})
+            ev_log = {"step": step, "val/ppl": val_ppl}
+            if patience is not None:
+                ev_log.update(patience.log_dict())
+            log_fn(ev_log)
 
-    # Final evaluation
-    val_ppl = evaluate(model, val_ds, device, max_batches=50)
-    history["val_ppl"].append(val_ppl)
-    print(f"  [final] val_ppl={val_ppl:.2f}")
-    log_fn({"step": cfg.max_steps, "val/ppl": val_ppl})
+            if (
+                save_dir is not None
+                and save_interval > 0
+                and step % save_interval == 0
+            ):
+                is_best = val_ppl < best_ppl
+                if is_best:
+                    best_ppl = val_ppl
+                    best_step = step
+                _save_checkpoint(
+                    model,
+                    step,
+                    save_dir,
+                    val_ppl,
+                    bandit_state=None,
+                    is_best=is_best,
+                )
+                if max_keep > 0:
+                    prot: set[str] = set()
+                    if best_step >= 0:
+                        prot.add(f"ckpt-step{best_step:06d}")
+                    _prune_checkpoints(save_dir, max_keep, prot)
+
+            if patience is not None:
+                stop, reason = patience.should_stop(step)
+                if stop:
+                    print(f"\n[patience] early stop at step {step}: {reason}")
+                    history["early_stop"] = True
+                    history["early_stop_step"] = step
+                    history["early_stop_reason"] = reason
+                    stopped_early = True
+                    break
+
+    # Final evaluation (skipped if we already evaluated at the stop step)
+    if stopped_early:
+        val_ppl = history["val_ppl"][-1]
+        print(f"  [final] val_ppl={val_ppl:.2f}  (patience early stop)")
+        log_fn({"step": step, "val/ppl": val_ppl})
+        final_ckpt_step = step
+    else:
+        val_ppl = evaluate(model, val_ds, device, max_batches=50)
+        history["val_ppl"].append(val_ppl)
+        print(f"  [final] val_ppl={val_ppl:.2f}")
+        log_fn({"step": cfg.max_steps, "val/ppl": val_ppl})
+        final_ckpt_step = cfg.max_steps
+
+    if save_dir is not None:
+        bandit_state = _collect_bandit_state(sieve, history)
+        is_best = val_ppl < best_ppl
+        if is_best:
+            best_ppl = val_ppl
+            best_step = final_ckpt_step
+        _save_checkpoint(
+            model,
+            final_ckpt_step,
+            save_dir,
+            val_ppl,
+            bandit_state=bandit_state,
+            is_best=is_best,
+        )
+        print(
+            f"[ckpt] final at step {final_ckpt_step}, "
+            f"best at step {best_step} (val_ppl={best_ppl:.2f})"
+        )
 
     # ── Timing summary at end ─────────────────────────────────────────
-    _print_timing_summary(T, N, cfg.max_steps)
+    _print_timing_summary(T, N, n_loop_steps)
     history["timing"] = dict(T)
+    if save_dir is not None:
+        history["best_step"] = best_step
+        history["best_ppl"] = best_ppl
 
     return history
 

@@ -187,6 +187,7 @@ def train_remote(train_cli: str = DEFAULT_CLI) -> dict:
         {
             "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
             "PYTHONHASHSEED": "42",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
             "WANDB_DIR": str(run_dir),
             "WANDB_NAME": run_name,
         }

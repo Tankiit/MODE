@@ -379,7 +379,8 @@ def train(
             t1 = perf_counter()
             if sieve is not None:
                 if is_rescore:
-                    mask = sieve.score_and_mask(logits.float(), input_ids, ref_losses)
+                    with torch.no_grad():
+                        mask = sieve.score_and_mask(logits.detach(), input_ids, ref_losses)
                 else:
                     mask = sieve.mask_cache.mask
             else:

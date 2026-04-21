@@ -1,0 +1,5 @@
+name,baseline,seed,steps,alpha,status,wall_seconds,best_ppl,final_val_ppl,best_step,scorer_overhead_pct,max_weight
+clm_A_wikitext103_gpt2l_a100_s42_st17500,clm_A,42,17500,1.0,failed,12.745926856994629,,,,,
+rho1_wikitext103_gpt2l_a70_s42_st25000,rho1,42,25000,0.7,failed,13.563301801681519,,,,,
+clm_B_wikitext103_gpt2l_a100_s42_st25000,clm_B,42,25000,1.0,failed,14.11662483215332,,,,,
+sieve_wikitext103_gpt2l_a70_s42_st25000,sieve,42,25000,0.7,failed,16.534075260162354,,,,,

@@ -1,0 +1,539 @@
+backend=cuda  dtype=torch.bfloat16  seed=42
+[data] train: 950.0M tokens
+[data] val: 50.0M tokens
+[liger] Not enabled: cannot import name 'apply_liger_kernel_to_gpt2' from 'liger_kernel.transformers' (/lustre/fsn1/projects/rech/sum/ufj45ra/venvs/sieve/lib/python3.12/site-packages/liger_kernel/transformers/__init__.py)
+step     0  loss=3.6508  grad=4.406
+step    50  loss=2.8795  grad=3.531
+step   100  loss=3.0624  grad=3.281
+step   150  loss=3.3418  grad=2.812
+step   200  loss=2.9559  grad=2.516
+step   250  loss=2.9698  grad=3.016
+step   300  loss=2.7318  grad=2.703
+step   350  loss=2.5879  grad=2.484
+step   400  loss=3.0032  grad=2.500
+step   450  loss=2.9335  grad=3.016
+step   500  loss=2.7941  grad=2.625
+
+  step   500  val_ppl=18.44
+          val_ppl=18.44
+step   550  loss=3.1665  grad=2.391
+step   600  loss=3.1127  grad=2.812
+step   650  loss=3.0726  grad=2.688
+step   700  loss=2.7902  grad=2.297
+step   750  loss=3.1563  grad=2.516
+step   800  loss=3.3172  grad=2.562
+step   850  loss=3.0074  grad=2.438
+step   900  loss=3.6541  grad=2.750
+step   950  loss=3.1511  grad=2.766
+step  1000  loss=2.8606  grad=2.656
+
+  step  1000  val_ppl=17.78
+          val_ppl=17.78
+step  1050  loss=3.1944  grad=2.844
+step  1100  loss=2.5848  grad=2.172
+step  1150  loss=3.2410  grad=2.641
+step  1200  loss=3.1889  grad=2.438
+step  1250  loss=3.2600  grad=2.547
+step  1300  loss=3.1174  grad=2.328
+step  1350  loss=3.1228  grad=2.141
+step  1400  loss=3.0572  grad=2.344
+step  1450  loss=2.4007  grad=2.000
+step  1500  loss=3.0917  grad=2.078
+
+  step  1500  val_ppl=17.58
+          val_ppl=17.58
+step  1550  loss=2.9179  grad=2.078
+step  1600  loss=3.0312  grad=2.375
+step  1650  loss=2.9452  grad=2.250
+step  1700  loss=2.6754  grad=2.094
+step  1750  loss=2.7130  grad=1.961
+step  1800  loss=3.2446  grad=2.125
+step  1850  loss=2.5578  grad=2.656
+step  1900  loss=2.9347  grad=2.141
+step  1950  loss=2.8054  grad=2.062
+step  2000  loss=3.1706  grad=2.203
+
+  step  2000  val_ppl=17.47
+          val_ppl=17.47
+step  2050  loss=2.8604  grad=1.992
+step  2100  loss=3.0422  grad=2.234
+step  2150  loss=3.1670  grad=2.266
+step  2200  loss=3.1397  grad=1.945
+step  2250  loss=3.3310  grad=1.898
+step  2300  loss=2.9263  grad=2.031
+step  2350  loss=3.4019  grad=2.188
+step  2400  loss=2.7142  grad=1.883
+step  2450  loss=2.7062  grad=1.719
+step  2500  loss=2.5372  grad=2.141
+
+  step  2500  val_ppl=17.32
+          val_ppl=17.32
+step  2550  loss=3.0180  grad=1.906
+step  2600  loss=2.7006  grad=1.828
+step  2650  loss=3.0679  grad=2.094
+step  2700  loss=3.0948  grad=2.031
+step  2750  loss=2.6647  grad=1.734
+step  2800  loss=2.7001  grad=1.812
+step  2850  loss=3.0905  grad=1.898
+step  2900  loss=2.7259  grad=1.789
+step  2950  loss=2.6981  grad=1.734
+step  3000  loss=2.7557  grad=1.703
+
+  step  3000  val_ppl=17.20
+          val_ppl=17.20
+step  3050  loss=3.3711  grad=2.078
+step  3100  loss=3.1433  grad=1.797
+step  3150  loss=3.2358  grad=1.844
+step  3200  loss=2.6789  grad=1.742
+step  3250  loss=3.1081  grad=1.859
+step  3300  loss=2.9566  grad=1.727
+step  3350  loss=3.1246  grad=2.000
+step  3400  loss=3.2867  grad=1.898
+step  3450  loss=3.2621  grad=1.805
+step  3500  loss=3.4366  grad=1.781
+
+  step  3500  val_ppl=16.97
+          val_ppl=16.97
+step  3550  loss=2.7627  grad=4.000
+step  3600  loss=3.0508  grad=1.719
+step  3650  loss=3.0204  grad=1.914
+step  3700  loss=2.9100  grad=1.789
+step  3750  loss=3.1394  grad=1.703
+step  3800  loss=2.8548  grad=1.688
+step  3850  loss=2.7135  grad=1.703
+step  3900  loss=2.9494  grad=1.844
+step  3950  loss=2.9612  grad=1.844
+step  4000  loss=2.7331  grad=1.672
+
+  step  4000  val_ppl=16.82
+          val_ppl=16.82
+step  4050  loss=2.3925  grad=1.586
+step  4100  loss=3.1862  grad=1.766
+step  4150  loss=2.6099  grad=1.594
+step  4200  loss=2.8008  grad=1.664
+step  4250  loss=2.5962  grad=1.703
+step  4300  loss=3.0006  grad=1.648
+step  4350  loss=3.0617  grad=1.992
+step  4400  loss=3.1019  grad=1.930
+step  4450  loss=3.0132  grad=1.773
+step  4500  loss=2.9119  grad=1.758
+
+  step  4500  val_ppl=16.70
+          val_ppl=16.70
+step  4550  loss=2.7121  grad=1.648
+step  4600  loss=2.7062  grad=1.656
+step  4650  loss=2.9352  grad=1.664
+step  4700  loss=2.7907  grad=1.898
+step  4750  loss=2.6995  grad=1.703
+step  4800  loss=3.2939  grad=1.766
+step  4850  loss=3.1593  grad=1.734
+step  4900  loss=2.8555  grad=1.766
+step  4950  loss=2.9160  grad=1.625
+step  5000  loss=2.8500  grad=1.875
+
+  step  5000  val_ppl=16.59
+          val_ppl=16.59
+step  5050  loss=2.9084  grad=1.711
+step  5100  loss=3.0039  grad=1.719
+step  5150  loss=2.9409  grad=1.609
+step  5200  loss=3.0544  grad=1.664
+step  5250  loss=2.9222  grad=1.727
+step  5300  loss=3.1673  grad=1.922
+step  5350  loss=3.0971  grad=1.680
+step  5400  loss=2.4033  grad=1.641
+step  5450  loss=2.9240  grad=1.617
+step  5500  loss=2.7065  grad=1.758
+
+  step  5500  val_ppl=16.58
+          val_ppl=16.58
+step  5550  loss=2.7797  grad=1.898
+step  5600  loss=2.6165  grad=1.742
+step  5650  loss=2.8750  grad=1.633
+step  5700  loss=2.6957  grad=1.602
+step  5750  loss=3.0239  grad=1.680
+step  5800  loss=3.2466  grad=1.695
+step  5850  loss=2.4787  grad=1.672
+step  5900  loss=3.0811  grad=1.836
+step  5950  loss=3.0636  grad=1.742
+step  6000  loss=3.3172  grad=1.828
+
+  step  6000  val_ppl=16.48
+          val_ppl=16.48
+step  6050  loss=3.0949  grad=1.703
+step  6100  loss=2.8826  grad=1.844
+step  6150  loss=2.7555  grad=1.633
+step  6200  loss=2.8145  grad=1.648
+step  6250  loss=2.9670  grad=1.703
+step  6300  loss=2.7245  grad=1.633
+step  6350  loss=2.8658  grad=1.633
+step  6400  loss=2.5785  grad=1.641
+step  6450  loss=3.1137  grad=1.797
+step  6500  loss=3.0626  grad=1.789
+
+  step  6500  val_ppl=16.49
+          val_ppl=16.49
+step  6550  loss=3.1406  grad=1.688
+step  6600  loss=2.9310  grad=1.688
+step  6650  loss=2.8863  grad=1.609
+step  6700  loss=3.2828  grad=1.883
+step  6750  loss=3.0787  grad=1.703
+step  6800  loss=3.2751  grad=1.945
+step  6850  loss=3.2405  grad=1.961
+step  6900  loss=3.6006  grad=1.922
+step  6950  loss=2.8080  grad=1.695
+step  7000  loss=3.0596  grad=1.695
+
+  step  7000  val_ppl=16.37
+          val_ppl=16.37
+step  7050  loss=2.5069  grad=1.531
+step  7100  loss=2.9328  grad=1.844
+step  7150  loss=2.9450  grad=1.789
+step  7200  loss=2.8025  grad=1.680
+step  7250  loss=3.4915  grad=1.945
+step  7300  loss=3.1930  grad=1.703
+step  7350  loss=3.1348  grad=1.781
+step  7400  loss=3.4617  grad=1.742
+step  7450  loss=3.0170  grad=1.766
+step  7500  loss=2.9627  grad=1.695
+
+  step  7500  val_ppl=16.31
+          val_ppl=16.31
+step  7550  loss=2.8999  grad=1.594
+step  7600  loss=3.3761  grad=1.883
+step  7650  loss=3.1311  grad=1.891
+step  7700  loss=2.8916  grad=1.578
+step  7750  loss=2.8342  grad=1.828
+step  7800  loss=2.9578  grad=1.688
+step  7850  loss=3.0891  grad=1.828
+step  7900  loss=3.1711  grad=1.742
+step  7950  loss=2.5178  grad=1.547
+step  8000  loss=3.0412  grad=1.664
+
+  step  8000  val_ppl=16.30
+          val_ppl=16.30
+step  8050  loss=3.0040  grad=1.758
+step  8100  loss=2.8809  grad=1.625
+step  8150  loss=2.5154  grad=1.648
+step  8200  loss=2.9199  grad=1.625
+step  8250  loss=2.4189  grad=1.516
+step  8300  loss=2.7018  grad=1.602
+step  8350  loss=3.0802  grad=1.562
+step  8400  loss=3.0058  grad=1.727
+step  8450  loss=2.4468  grad=1.562
+step  8500  loss=2.5110  grad=1.531
+
+  step  8500  val_ppl=16.30
+          val_ppl=16.30
+step  8550  loss=3.2274  grad=1.695
+step  8600  loss=2.9568  grad=1.594
+step  8650  loss=2.8546  grad=1.742
+step  8700  loss=3.2321  grad=1.969
+step  8750  loss=2.9621  grad=1.688
+step  8800  loss=2.6037  grad=1.492
+step  8850  loss=3.1041  grad=1.695
+step  8900  loss=2.8838  grad=1.633
+step  8950  loss=2.9760  grad=1.672
+step  9000  loss=2.9239  grad=1.680
+
+  step  9000  val_ppl=16.20
+          val_ppl=16.20
+step  9050  loss=2.6934  grad=1.602
+step  9100  loss=2.2567  grad=1.477
+step  9150  loss=2.4625  grad=1.594
+step  9200  loss=2.8840  grad=1.578
+step  9250  loss=2.7915  grad=1.586
+step  9300  loss=3.2248  grad=1.656
+step  9350  loss=3.0871  grad=1.672
+step  9400  loss=2.3748  grad=1.453
+step  9450  loss=2.8133  grad=1.750
+step  9500  loss=2.6917  grad=1.500
+
+  step  9500  val_ppl=16.20
+          val_ppl=16.20
+step  9550  loss=2.9300  grad=1.758
+step  9600  loss=3.1523  grad=1.719
+step  9650  loss=2.9996  grad=1.789
+step  9700  loss=3.0462  grad=1.672
+step  9750  loss=2.8048  grad=1.562
+step  9800  loss=3.0209  grad=1.773
+step  9850  loss=2.9384  grad=1.602
+step  9900  loss=2.8485  grad=1.539
+step  9950  loss=3.0082  grad=1.742
+step 10000  loss=2.8254  grad=1.820
+
+  step 10000  val_ppl=16.14
+          val_ppl=16.14
+step 10050  loss=2.6584  grad=1.484
+step 10100  loss=3.1707  grad=1.836
+step 10150  loss=2.9884  grad=1.570
+step 10200  loss=2.8598  grad=1.633
+step 10250  loss=2.9209  grad=1.648
+step 10300  loss=3.1843  grad=1.750
+step 10350  loss=3.0957  grad=1.711
+step 10400  loss=2.7373  grad=1.688
+step 10450  loss=2.8121  grad=1.680
+step 10500  loss=2.8379  grad=1.562
+
+  step 10500  val_ppl=16.14
+          val_ppl=16.14
+step 10550  loss=2.7039  grad=1.461
+step 10600  loss=3.1979  grad=1.641
+step 10650  loss=3.0833  grad=1.766
+step 10700  loss=2.9457  grad=1.625
+step 10750  loss=3.1737  grad=1.734
+step 10800  loss=2.8647  grad=1.711
+step 10850  loss=2.6401  grad=1.492
+step 10900  loss=3.2996  grad=1.648
+step 10950  loss=2.6106  grad=1.719
+step 11000  loss=2.6784  grad=1.656
+
+  step 11000  val_ppl=16.14
+          val_ppl=16.14
+step 11050  loss=2.8003  grad=1.547
+step 11100  loss=2.7506  grad=1.555
+step 11150  loss=3.4632  grad=1.906
+step 11200  loss=3.0839  grad=1.695
+step 11250  loss=3.0945  grad=1.711
+step 11300  loss=3.0884  grad=1.797
+step 11350  loss=3.2226  grad=1.773
+step 11400  loss=2.9228  grad=1.602
+step 11450  loss=2.3326  grad=1.703
+step 11500  loss=3.1033  grad=1.820
+
+  step 11500  val_ppl=16.09
+          val_ppl=16.09
+step 11550  loss=2.6044  grad=1.477
+step 11600  loss=2.9490  grad=1.672
+step 11650  loss=3.0776  grad=1.656
+step 11700  loss=2.5269  grad=1.438
+step 11750  loss=3.0617  grad=1.719
+step 11800  loss=2.9096  grad=1.664
+step 11850  loss=3.0047  grad=1.742
+step 11900  loss=3.5941  grad=1.930
+step 11950  loss=2.8203  grad=1.633
+step 12000  loss=2.8088  grad=1.703
+
+  step 12000  val_ppl=16.07
+          val_ppl=16.07
+step 12050  loss=2.7744  grad=1.586
+step 12100  loss=3.1190  grad=1.602
+step 12150  loss=3.2405  grad=1.727
+step 12200  loss=2.8112  grad=1.508
+step 12250  loss=2.9136  grad=1.648
+step 12300  loss=2.7163  grad=1.867
+step 12350  loss=3.1268  grad=1.695
+step 12400  loss=2.9305  grad=1.617
+step 12450  loss=3.2679  grad=1.867
+step 12500  loss=2.9715  grad=1.641
+
+  step 12500  val_ppl=16.05
+          val_ppl=16.05
+step 12550  loss=2.4669  grad=1.609
+step 12600  loss=2.8866  grad=1.656
+step 12650  loss=2.6225  grad=1.578
+step 12700  loss=3.2214  grad=1.898
+step 12750  loss=2.9914  grad=1.727
+step 12800  loss=3.2546  grad=1.750
+step 12850  loss=2.9128  grad=1.609
+step 12900  loss=3.1046  grad=1.633
+step 12950  loss=2.8203  grad=1.516
+step 13000  loss=3.4054  grad=1.734
+
+  step 13000  val_ppl=16.01
+          val_ppl=16.01
+step 13050  loss=3.0979  grad=1.938
+step 13100  loss=2.7495  grad=1.547
+step 13150  loss=2.8182  grad=1.625
+step 13200  loss=3.0685  grad=1.625
+step 13250  loss=2.7236  grad=1.586
+step 13300  loss=3.0435  grad=1.648
+step 13350  loss=2.8014  grad=1.672
+step 13400  loss=2.7470  grad=1.586
+step 13450  loss=2.9238  grad=1.578
+step 13500  loss=2.9833  grad=1.680
+
+  step 13500  val_ppl=16.00
+          val_ppl=16.00
+step 13550  loss=2.6569  grad=1.539
+step 13600  loss=2.8947  grad=1.688
+step 13650  loss=3.1164  grad=1.773
+step 13700  loss=2.7020  grad=1.578
+step 13750  loss=2.8825  grad=1.625
+step 13800  loss=3.0661  grad=1.578
+step 13850  loss=2.8451  grad=1.672
+step 13900  loss=3.0619  grad=1.695
+step 13950  loss=2.6409  grad=1.641
+step 14000  loss=2.5068  grad=1.578
+
+  step 14000  val_ppl=15.96
+          val_ppl=15.96
+step 14050  loss=2.6905  grad=1.727
+step 14100  loss=2.9785  grad=1.922
+step 14150  loss=2.9879  grad=1.766
+step 14200  loss=3.1470  grad=1.680
+step 14250  loss=2.5831  grad=1.625
+step 14300  loss=3.3921  grad=1.797
+step 14350  loss=3.0660  grad=1.688
+step 14400  loss=3.0567  grad=1.547
+step 14450  loss=2.8489  grad=1.570
+step 14500  loss=2.6048  grad=1.477
+
+  step 14500  val_ppl=15.97
+          val_ppl=15.97
+step 14550  loss=2.8400  grad=1.562
+step 14600  loss=2.6029  grad=1.617
+step 14650  loss=3.2303  grad=1.734
+step 14700  loss=2.7925  grad=1.641
+step 14750  loss=2.6550  grad=1.703
+step 14800  loss=2.7805  grad=1.570
+step 14850  loss=3.2557  grad=1.781
+step 14900  loss=2.8857  grad=1.758
+step 14950  loss=2.7183  grad=1.500
+step 15000  loss=3.2625  grad=1.617
+
+  step 15000  val_ppl=15.94
+          val_ppl=15.94
+step 15050  loss=3.3285  grad=1.773
+step 15100  loss=2.6729  grad=1.500
+step 15150  loss=2.4338  grad=1.477
+step 15200  loss=3.0059  grad=1.938
+step 15250  loss=2.8444  grad=1.586
+step 15300  loss=2.7848  grad=1.984
+step 15350  loss=3.1092  grad=1.812
+step 15400  loss=3.2485  grad=1.828
+step 15450  loss=2.5783  grad=1.656
+step 15500  loss=3.0511  grad=1.688
+
+  step 15500  val_ppl=15.94
+          val_ppl=15.94
+step 15550  loss=3.1639  grad=1.812
+step 15600  loss=2.8392  grad=1.797
+step 15650  loss=2.9743  grad=1.703
+step 15700  loss=2.7582  grad=1.477
+step 15750  loss=3.1271  grad=1.680
+step 15800  loss=2.8445  grad=1.727
+step 15850  loss=2.6240  grad=1.477
+step 15900  loss=2.8239  grad=1.586
+step 15950  loss=3.1194  grad=1.898
+step 16000  loss=2.9441  grad=1.672
+
+  step 16000  val_ppl=15.89
+          val_ppl=15.89
+step 16050  loss=2.7883  grad=1.711
+step 16100  loss=2.8736  grad=1.742
+step 16150  loss=3.1859  grad=1.570
+step 16200  loss=2.7868  grad=1.555
+step 16250  loss=3.1098  grad=1.680
+step 16300  loss=2.9394  grad=1.648
+step 16350  loss=3.3207  grad=1.688
+step 16400  loss=2.9657  grad=1.703
+step 16450  loss=3.2348  grad=1.797
+step 16500  loss=3.4309  grad=1.734
+
+  step 16500  val_ppl=15.92
+          val_ppl=15.92
+step 16550  loss=2.9717  grad=1.711
+step 16600  loss=2.6099  grad=1.523
+step 16650  loss=3.2139  grad=1.570
+step 16700  loss=2.6853  grad=1.539
+step 16750  loss=2.8405  grad=1.555
+step 16800  loss=3.5807  grad=1.781
+step 16850  loss=2.6773  grad=1.719
+step 16900  loss=2.8832  grad=1.664
+step 16950  loss=2.9990  grad=1.672
+step 17000  loss=2.9619  grad=1.633
+
+  step 17000  val_ppl=15.91
+          val_ppl=15.91
+step 17050  loss=3.0349  grad=1.914
+step 17100  loss=3.0200  grad=1.641
+step 17150  loss=2.9154  grad=1.648
+step 17200  loss=2.4766  grad=1.539
+step 17250  loss=3.0002  grad=1.672
+step 17300  loss=2.8709  grad=1.578
+step 17350  loss=2.5763  grad=1.531
+step 17400  loss=3.0206  grad=1.664
+step 17450  loss=2.7249  grad=1.602
+step 17500  loss=2.7435  grad=1.609
+
+  step 17500  val_ppl=15.88
+          val_ppl=15.88
+step 17550  loss=2.9408  grad=1.586
+step 17600  loss=2.9570  grad=1.539
+step 17650  loss=2.6445  grad=1.625
+step 17700  loss=3.1566  grad=1.734
+step 17750  loss=3.0416  grad=1.500
+step 17800  loss=3.4127  grad=1.781
+step 17850  loss=2.4863  grad=1.547
+step 17900  loss=2.9166  grad=1.586
+step 17950  loss=3.1992  grad=1.742
+step 18000  loss=2.9025  grad=1.703
+
+  step 18000  val_ppl=15.88
+          val_ppl=15.88
+step 18050  loss=2.6844  grad=1.656
+step 18100  loss=2.6237  grad=1.586
+step 18150  loss=3.0368  grad=1.562
+step 18200  loss=2.7915  grad=2.188
+step 18250  loss=3.1148  grad=1.727
+step 18300  loss=3.0878  grad=1.680
+step 18350  loss=2.5621  grad=1.492
+step 18400  loss=3.1017  grad=1.742
+step 18450  loss=2.8286  grad=1.695
+step 18500  loss=3.1052  grad=1.727
+
+  step 18500  val_ppl=15.88
+          val_ppl=15.88
+step 18550  loss=2.4527  grad=1.516
+step 18600  loss=2.7888  grad=1.641
+step 18650  loss=2.7739  grad=1.484
+step 18700  loss=2.8725  grad=1.766
+step 18750  loss=2.8290  grad=1.602
+step 18800  loss=2.7887  grad=1.633
+step 18850  loss=2.9568  grad=1.562
+step 18900  loss=3.0415  grad=1.664
+step 18950  loss=2.5142  grad=1.656
+step 19000  loss=3.1707  grad=1.844
+
+  step 19000  val_ppl=15.88
+          val_ppl=15.88
+step 19050  loss=2.8071  grad=1.594
+step 19100  loss=3.1664  grad=1.734
+step 19150  loss=3.0533  grad=1.656
+step 19200  loss=2.1029  grad=1.266
+step 19250  loss=3.0654  grad=1.617
+step 19300  loss=3.3709  grad=1.680
+step 19350  loss=2.8280  grad=1.594
+step 19400  loss=2.8488  grad=1.703
+step 19450  loss=2.9100  grad=1.953
+step 19500  loss=3.0583  grad=1.664
+
+  step 19500  val_ppl=15.84
+          val_ppl=15.84
+step 19550  loss=2.4644  grad=1.539
+step 19600  loss=3.0053  grad=1.672
+step 19650  loss=2.6302  grad=1.445
+step 19700  loss=3.3769  grad=1.781
+step 19750  loss=2.9666  grad=1.578
+step 19800  loss=2.6098  grad=1.594
+step 19850  loss=2.5694  grad=1.539
+step 19900  loss=2.7015  grad=1.609
+step 19950  loss=2.6613  grad=1.539
+  [final] val_ppl=15.83
+          val_ppl=15.83
+
+── Timing breakdown ─────────────────────────────────
+  component    ms/step   % total   calls
+  ────────── ─────────  ────────  ──────
+  data            4.25      5.2%   20000
+  bandit          0.00      0.0%   20000
+  fwd            10.45     12.8%   20000
+  score           0.00      0.0%       0
+  bwd            67.14     82.0%   20000
+  ────────── ─────────  ────────  ──────
+  TOTAL          81.84    100.0%
+────────────────────────────────────────────────────
+
+Final val PPL (clm): 15.83
+Scorer overhead: 0.00% of total wall time
+✓ Within paper's ~1% claim

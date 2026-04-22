@@ -1,0 +1,544 @@
+backend=cuda  dtype=torch.bfloat16  seed=42
+[data] train: 950.0M tokens
+[data] val: 50.0M tokens
+[liger] Not enabled: cannot import name 'apply_liger_kernel_to_gpt2' from 'liger_kernel.transformers' (/lustre/fsn1/projects/rech/sum/ufj45ra/venvs/sieve/lib/python3.12/site-packages/liger_kernel/transformers/__init__.py)
+step     0  loss=4.9841  grad=7.500  S_E=1.000 S_U=0.000
+step    50  loss=3.9736  grad=3.297  S_E=1.000 S_U=0.000
+step   100  loss=4.2728  grad=3.281  S_E=1.000 S_U=0.000
+step   150  loss=4.5941  grad=3.797  S_E=1.000 S_U=0.000
+step   200  loss=4.1444  grad=4.000  S_E=1.000 S_U=0.000
+step   250  loss=4.1187  grad=3.359  S_E=1.000 S_U=0.000
+step   300  loss=3.7970  grad=3.391  S_E=1.000 S_U=0.000
+step   350  loss=3.6114  grad=4.094  S_E=1.000 S_U=0.000
+step   400  loss=4.1325  grad=3.891  S_E=1.000 S_U=0.000
+step   450  loss=4.0999  grad=4.375  S_E=1.000 S_U=0.000
+step   500  loss=3.8310  grad=3.656  S_E=1.000 S_U=0.000
+
+  step   500  val_ppl=18.43
+          val_ppl=18.43
+step   550  loss=4.3998  grad=4.656  S_E=1.000 S_U=0.000
+step   600  loss=4.3359  grad=4.125  S_E=1.000 S_U=0.000
+step   650  loss=4.2628  grad=3.984  S_E=1.000 S_U=0.000
+step   700  loss=3.8807  grad=3.469  S_E=1.000 S_U=0.000
+step   750  loss=4.4045  grad=4.375  S_E=1.000 S_U=0.000
+step   800  loss=4.5810  grad=4.312  S_E=1.000 S_U=0.000
+step   850  loss=4.1940  grad=4.312  S_E=1.000 S_U=0.000
+step   900  loss=4.9559  grad=5.062  S_E=1.000 S_U=0.000
+step   950  loss=4.3688  grad=4.125  S_E=1.000 S_U=0.000
+step  1000  loss=4.0066  grad=3.750  S_E=1.000 S_U=0.000
+
+  step  1000  val_ppl=18.05
+          val_ppl=18.05
+step  1050  loss=4.3789  grad=4.750  S_E=1.000 S_U=0.000
+step  1100  loss=3.6102  grad=4.094  S_E=1.000 S_U=0.000
+step  1150  loss=4.4774  grad=4.281  S_E=1.000 S_U=0.000
+step  1200  loss=4.4079  grad=4.688  S_E=1.000 S_U=0.000
+step  1250  loss=4.4939  grad=4.469  S_E=1.000 S_U=0.000
+step  1300  loss=4.3245  grad=4.688  S_E=1.000 S_U=0.000
+step  1350  loss=4.3373  grad=4.312  S_E=1.000 S_U=0.000
+step  1400  loss=4.2474  grad=4.656  S_E=1.000 S_U=0.000
+step  1450  loss=3.3658  grad=3.531  S_E=1.000 S_U=0.000
+step  1500  loss=4.2753  grad=4.062  S_E=1.000 S_U=0.000
+
+  step  1500  val_ppl=17.81
+          val_ppl=17.81
+step  1550  loss=4.0560  grad=4.969  S_E=1.000 S_U=0.000
+step  1600  loss=4.1921  grad=4.562  S_E=1.000 S_U=0.000
+step  1650  loss=4.0658  grad=4.656  S_E=1.000 S_U=0.000
+step  1700  loss=3.7167  grad=4.219  S_E=1.000 S_U=0.000
+step  1750  loss=3.8133  grad=3.953  S_E=1.000 S_U=0.000
+step  1800  loss=4.5560  grad=4.875  S_E=1.000 S_U=0.000
+step  1850  loss=3.5843  grad=5.469  S_E=1.000 S_U=0.000
+step  1900  loss=4.1143  grad=5.344  S_E=1.000 S_U=0.000
+step  1950  loss=3.9265  grad=3.688  S_E=1.000 S_U=0.000
+step  2000  loss=4.4426  grad=4.438  S_E=1.000 S_U=0.000
+
+  step  2000  val_ppl=17.65
+          val_ppl=17.65
+step  2050  loss=3.9894  grad=3.500  S_E=1.000 S_U=0.000
+step  2100  loss=4.2605  grad=4.344  S_E=1.000 S_U=0.000
+step  2150  loss=4.3909  grad=4.656  S_E=1.000 S_U=0.000
+step  2200  loss=4.4134  grad=4.250  S_E=1.000 S_U=0.000
+step  2250  loss=4.6639  grad=4.781  S_E=1.000 S_U=0.000
+step  2300  loss=4.0849  grad=4.625  S_E=1.000 S_U=0.000
+step  2350  loss=4.7393  grad=4.469  S_E=1.000 S_U=0.000
+step  2400  loss=3.8254  grad=4.094  S_E=1.000 S_U=0.000
+step  2450  loss=3.8090  grad=3.828  S_E=1.000 S_U=0.000
+step  2500  loss=3.5446  grad=4.750  S_E=1.000 S_U=0.000
+
+  step  2500  val_ppl=17.45
+          val_ppl=17.45
+step  2550  loss=4.2339  grad=4.344  S_E=1.000 S_U=0.000
+step  2600  loss=3.7967  grad=3.375  S_E=1.000 S_U=0.000
+step  2650  loss=4.2450  grad=4.812  S_E=1.000 S_U=0.000
+step  2700  loss=4.2423  grad=3.625  S_E=1.000 S_U=0.000
+step  2750  loss=3.7508  grad=3.812  S_E=1.000 S_U=0.000
+step  2800  loss=3.8027  grad=4.125  S_E=1.000 S_U=0.000
+step  2850  loss=4.2468  grad=4.906  S_E=1.000 S_U=0.000
+step  2900  loss=3.8013  grad=4.156  S_E=1.000 S_U=0.000
+step  2950  loss=3.8063  grad=4.000  S_E=1.000 S_U=0.000
+step  3000  loss=3.8728  grad=4.375  S_E=1.000 S_U=0.000
+
+  step  3000  val_ppl=17.39
+          val_ppl=17.39
+step  3050  loss=4.4450  grad=4.219  S_E=1.000 S_U=0.000
+step  3100  loss=4.3930  grad=4.562  S_E=1.000 S_U=0.000
+step  3150  loss=4.5601  grad=4.781  S_E=1.000 S_U=0.000
+step  3200  loss=3.7990  grad=4.188  S_E=1.000 S_U=0.000
+step  3250  loss=4.3325  grad=5.094  S_E=1.000 S_U=0.000
+step  3300  loss=4.1637  grad=4.031  S_E=1.000 S_U=0.000
+step  3350  loss=4.3398  grad=4.312  S_E=1.000 S_U=0.000
+step  3400  loss=4.5390  grad=4.344  S_E=1.000 S_U=0.000
+step  3450  loss=4.5172  grad=5.031  S_E=1.000 S_U=0.000
+step  3500  loss=4.7823  grad=4.656  S_E=1.000 S_U=0.000
+
+  step  3500  val_ppl=17.26
+          val_ppl=17.26
+step  3550  loss=3.9495  grad=21.125  S_E=1.000 S_U=0.000
+step  3600  loss=4.2965  grad=4.281  S_E=1.000 S_U=0.000
+step  3650  loss=4.1986  grad=4.312  S_E=1.000 S_U=0.000
+step  3700  loss=4.0974  grad=4.281  S_E=1.000 S_U=0.000
+step  3750  loss=4.4164  grad=4.219  S_E=1.000 S_U=0.000
+step  3800  loss=4.0479  grad=3.984  S_E=1.000 S_U=0.000
+step  3850  loss=3.8467  grad=3.891  S_E=1.000 S_U=0.000
+step  3900  loss=4.1148  grad=4.719  S_E=1.000 S_U=0.000
+step  3950  loss=4.1273  grad=5.000  S_E=1.000 S_U=0.000
+step  4000  loss=3.8335  grad=3.906  S_E=1.000 S_U=0.000
+
+  step  4000  val_ppl=17.12
+          val_ppl=17.12
+step  4050  loss=3.4067  grad=3.516  S_E=1.000 S_U=0.000
+step  4100  loss=4.4437  grad=4.500  S_E=1.000 S_U=0.000
+step  4150  loss=3.7222  grad=3.953  S_E=1.000 S_U=0.000
+step  4200  loss=3.9348  grad=3.688  S_E=1.000 S_U=0.000
+step  4250  loss=3.6876  grad=3.797  S_E=1.000 S_U=0.000
+step  4300  loss=4.1924  grad=3.938  S_E=1.000 S_U=0.000
+step  4350  loss=4.2729  grad=5.156  S_E=1.000 S_U=0.000
+step  4400  loss=4.3441  grad=4.156  S_E=1.000 S_U=0.000
+step  4450  loss=4.2180  grad=3.938  S_E=1.000 S_U=0.000
+step  4500  loss=4.0936  grad=4.719  S_E=1.000 S_U=0.000
+
+  step  4500  val_ppl=17.03
+          val_ppl=17.03
+step  4550  loss=3.8097  grad=4.469  S_E=1.000 S_U=0.000
+step  4600  loss=3.8017  grad=4.156  S_E=1.000 S_U=0.000
+step  4650  loss=4.1521  grad=4.312  S_E=1.000 S_U=0.000
+step  4700  loss=3.9345  grad=4.250  S_E=1.000 S_U=0.000
+step  4750  loss=3.8331  grad=4.406  S_E=1.000 S_U=0.000
+step  4800  loss=4.5776  grad=5.250  S_E=1.000 S_U=0.000
+step  4850  loss=4.3841  grad=5.125  S_E=1.000 S_U=0.000
+step  4900  loss=4.0283  grad=4.375  S_E=1.000 S_U=0.000
+step  4950  loss=4.1277  grad=4.469  S_E=1.000 S_U=0.000
+step  5000  loss=4.0264  grad=4.781  S_E=1.000 S_U=0.000
+
+  step  5000  val_ppl=16.96
+          val_ppl=16.96
+step  5050  loss=4.0845  grad=4.594  S_E=1.000 S_U=0.000
+step  5100  loss=4.2073  grad=4.531  S_E=1.000 S_U=0.000
+step  5150  loss=4.1327  grad=4.031  S_E=1.000 S_U=0.000
+step  5200  loss=4.2755  grad=4.438  S_E=1.000 S_U=0.000
+step  5250  loss=4.0692  grad=4.219  S_E=1.000 S_U=0.000
+step  5300  loss=4.4277  grad=5.094  S_E=1.000 S_U=0.000
+step  5350  loss=4.3366  grad=5.094  S_E=1.000 S_U=0.000
+step  5400  loss=3.4138  grad=3.922  S_E=1.000 S_U=0.000
+step  5450  loss=4.0905  grad=4.469  S_E=1.000 S_U=0.000
+step  5500  loss=3.8131  grad=4.094  S_E=1.000 S_U=0.000
+
+  step  5500  val_ppl=16.94
+          val_ppl=16.94
+step  5550  loss=3.9301  grad=4.844  S_E=1.000 S_U=0.000
+step  5600  loss=3.6700  grad=3.453  S_E=1.000 S_U=0.000
+step  5650  loss=4.0399  grad=4.062  S_E=1.000 S_U=0.000
+step  5700  loss=3.8052  grad=4.625  S_E=1.000 S_U=0.000
+step  5750  loss=4.2728  grad=4.406  S_E=1.000 S_U=0.000
+step  5800  loss=4.3749  grad=4.531  S_E=1.000 S_U=0.000
+step  5850  loss=3.4991  grad=3.844  S_E=1.000 S_U=0.000
+step  5900  loss=4.2827  grad=4.812  S_E=1.000 S_U=0.000
+step  5950  loss=4.2814  grad=4.438  S_E=1.000 S_U=0.000
+step  6000  loss=4.6126  grad=5.469  S_E=1.000 S_U=0.000
+
+  step  6000  val_ppl=16.84
+          val_ppl=16.84
+step  6050  loss=4.3147  grad=4.781  S_E=1.000 S_U=0.000
+step  6100  loss=4.0471  grad=4.781  S_E=1.000 S_U=0.000
+step  6150  loss=3.8935  grad=5.562  S_E=1.000 S_U=0.000
+step  6200  loss=3.9629  grad=5.250  S_E=1.000 S_U=0.000
+step  6250  loss=4.1507  grad=3.391  S_E=1.000 S_U=0.000
+step  6300  loss=3.8621  grad=4.250  S_E=1.000 S_U=0.000
+step  6350  loss=3.9754  grad=3.891  S_E=1.000 S_U=0.000
+step  6400  loss=3.6637  grad=3.828  S_E=1.000 S_U=0.000
+step  6450  loss=4.3395  grad=5.094  S_E=1.000 S_U=0.000
+step  6500  loss=4.2467  grad=5.688  S_E=1.000 S_U=0.000
+
+  step  6500  val_ppl=16.83
+          val_ppl=16.83
+step  6550  loss=4.4058  grad=4.281  S_E=1.000 S_U=0.000
+step  6600  loss=4.1102  grad=4.188  S_E=1.000 S_U=0.000
+step  6650  loss=4.0574  grad=4.094  S_E=1.000 S_U=0.000
+step  6700  loss=4.5650  grad=4.625  S_E=1.000 S_U=0.000
+step  6750  loss=4.3135  grad=5.719  S_E=1.000 S_U=0.000
+step  6800  loss=4.5461  grad=4.500  S_E=1.000 S_U=0.000
+step  6850  loss=4.4964  grad=5.531  S_E=1.000 S_U=0.000
+step  6900  loss=4.9576  grad=5.188  S_E=1.000 S_U=0.000
+step  6950  loss=3.9577  grad=4.219  S_E=1.000 S_U=0.000
+step  7000  loss=4.2841  grad=4.312  S_E=1.000 S_U=0.000
+
+  step  7000  val_ppl=16.76
+          val_ppl=16.76
+step  7050  loss=3.5815  grad=4.938  S_E=1.000 S_U=0.000
+step  7100  loss=4.1571  grad=4.656  S_E=1.000 S_U=0.000
+step  7150  loss=4.1547  grad=4.812  S_E=1.000 S_U=0.000
+step  7200  loss=3.9878  grad=4.156  S_E=1.000 S_U=0.000
+step  7250  loss=4.8182  grad=6.188  S_E=1.000 S_U=0.000
+step  7300  loss=4.4697  grad=4.750  S_E=1.000 S_U=0.000
+step  7350  loss=4.3501  grad=5.438  S_E=1.000 S_U=0.000
+step  7400  loss=4.6104  grad=3.984  S_E=1.000 S_U=0.000
+step  7450  loss=4.2058  grad=5.000  S_E=1.000 S_U=0.000
+step  7500  loss=4.1818  grad=4.688  S_E=1.000 S_U=0.000
+
+  step  7500  val_ppl=16.68
+          val_ppl=16.68
+step  7550  loss=4.1147  grad=4.156  S_E=1.000 S_U=0.000
+step  7600  loss=4.6601  grad=6.062  S_E=1.000 S_U=0.000
+step  7650  loss=4.3687  grad=5.156  S_E=1.000 S_U=0.000
+step  7700  loss=4.0469  grad=4.844  S_E=1.000 S_U=0.000
+step  7750  loss=3.9820  grad=4.562  S_E=1.000 S_U=0.000
+step  7800  loss=4.1720  grad=5.312  S_E=1.000 S_U=0.000
+step  7850  loss=4.2984  grad=4.938  S_E=1.000 S_U=0.000
+step  7900  loss=4.3954  grad=5.031  S_E=1.000 S_U=0.000
+step  7950  loss=3.5529  grad=4.031  S_E=1.000 S_U=0.000
+step  8000  loss=4.2178  grad=5.688  S_E=1.000 S_U=0.000
+
+  step  8000  val_ppl=16.71
+          val_ppl=16.71
+step  8050  loss=4.1946  grad=5.031  S_E=1.000 S_U=0.000
+step  8100  loss=4.0848  grad=4.062  S_E=1.000 S_U=0.000
+step  8150  loss=3.5350  grad=4.344  S_E=1.000 S_U=0.000
+step  8200  loss=4.1068  grad=4.750  S_E=1.000 S_U=0.000
+step  8250  loss=3.4055  grad=4.062  S_E=1.000 S_U=0.000
+step  8300  loss=3.7729  grad=4.594  S_E=1.000 S_U=0.000
+step  8350  loss=4.3209  grad=3.969  S_E=1.000 S_U=0.000
+step  8400  loss=4.2031  grad=4.375  S_E=1.000 S_U=0.000
+step  8450  loss=3.4869  grad=3.781  S_E=1.000 S_U=0.000
+step  8500  loss=3.5909  grad=4.000  S_E=1.000 S_U=0.000
+
+  step  8500  val_ppl=16.67
+          val_ppl=16.67
+step  8550  loss=4.5325  grad=4.750  S_E=1.000 S_U=0.000
+step  8600  loss=4.1917  grad=3.906  S_E=1.000 S_U=0.000
+step  8650  loss=3.9900  grad=4.188  S_E=1.000 S_U=0.000
+step  8700  loss=4.5198  grad=4.938  S_E=1.000 S_U=0.000
+step  8750  loss=4.1591  grad=3.875  S_E=1.000 S_U=0.000
+step  8800  loss=3.6776  grad=3.750  S_E=1.000 S_U=0.000
+step  8850  loss=4.3318  grad=4.438  S_E=1.000 S_U=0.000
+step  8900  loss=4.0365  grad=4.156  S_E=1.000 S_U=0.000
+step  8950  loss=4.1871  grad=4.375  S_E=1.000 S_U=0.000
+step  9000  loss=4.1133  grad=4.188  S_E=1.000 S_U=0.000
+
+  step  9000  val_ppl=16.57
+          val_ppl=16.57
+step  9050  loss=3.8010  grad=4.594  S_E=1.000 S_U=0.000
+step  9100  loss=3.2118  grad=3.438  S_E=1.000 S_U=0.000
+step  9150  loss=3.4984  grad=4.000  S_E=1.000 S_U=0.000
+step  9200  loss=3.9987  grad=4.156  S_E=1.000 S_U=0.000
+step  9250  loss=3.9140  grad=4.344  S_E=1.000 S_U=0.000
+step  9300  loss=4.5257  grad=5.281  S_E=1.000 S_U=0.000
+step  9350  loss=4.3010  grad=4.750  S_E=1.000 S_U=0.000
+step  9400  loss=3.3804  grad=4.281  S_E=1.000 S_U=0.000
+step  9450  loss=3.9359  grad=4.875  S_E=1.000 S_U=0.000
+step  9500  loss=3.8311  grad=3.734  S_E=1.000 S_U=0.000
+
+  step  9500  val_ppl=16.58
+          val_ppl=16.58
+step  9550  loss=4.0919  grad=4.375  S_E=1.000 S_U=0.000
+step  9600  loss=4.4428  grad=5.531  S_E=1.000 S_U=0.000
+step  9650  loss=4.2569  grad=4.594  S_E=1.000 S_U=0.000
+step  9700  loss=4.3019  grad=4.656  S_E=1.000 S_U=0.000
+step  9750  loss=3.9779  grad=4.188  S_E=1.000 S_U=0.000
+step  9800  loss=4.2255  grad=5.000  S_E=1.000 S_U=0.000
+step  9850  loss=4.1155  grad=4.125  S_E=1.000 S_U=0.000
+step  9900  loss=4.0368  grad=4.094  S_E=1.000 S_U=0.000
+step  9950  loss=4.2329  grad=5.250  S_E=1.000 S_U=0.000
+step 10000  loss=3.9992  grad=4.781  S_E=1.000 S_U=0.000
+
+  step 10000  val_ppl=16.52
+          val_ppl=16.52
+step 10050  loss=3.7742  grad=3.703  S_E=1.000 S_U=0.000
+step 10100  loss=4.4022  grad=5.844  S_E=1.000 S_U=0.000
+step 10150  loss=4.1772  grad=4.344  S_E=1.000 S_U=0.000
+step 10200  loss=4.0072  grad=5.219  S_E=1.000 S_U=0.000
+step 10250  loss=4.0665  grad=3.969  S_E=1.000 S_U=0.000
+step 10300  loss=4.3894  grad=5.562  S_E=1.000 S_U=0.000
+step 10350  loss=4.3078  grad=4.844  S_E=1.000 S_U=0.000
+step 10400  loss=3.8772  grad=4.188  S_E=1.000 S_U=0.000
+step 10450  loss=3.9535  grad=4.219  S_E=1.000 S_U=0.000
+step 10500  loss=4.0047  grad=4.219  S_E=1.000 S_U=0.000
+
+  step 10500  val_ppl=16.53
+          val_ppl=16.53
+step 10550  loss=3.7872  grad=3.719  S_E=1.000 S_U=0.000
+step 10600  loss=4.4272  grad=4.750  S_E=1.000 S_U=0.000
+step 10650  loss=4.3015  grad=4.844  S_E=1.000 S_U=0.000
+step 10700  loss=4.1998  grad=4.219  S_E=1.000 S_U=0.000
+step 10750  loss=4.4135  grad=4.438  S_E=1.000 S_U=0.000
+step 10800  loss=4.0446  grad=4.688  S_E=1.000 S_U=0.000
+step 10850  loss=3.7556  grad=4.062  S_E=1.000 S_U=0.000
+step 10900  loss=4.5789  grad=4.531  S_E=1.000 S_U=0.000
+step 10950  loss=3.6668  grad=4.219  S_E=1.000 S_U=0.000
+step 11000  loss=3.7804  grad=4.406  S_E=1.000 S_U=0.000
+
+  step 11000  val_ppl=16.54
+          val_ppl=16.54
+step 11050  loss=3.9879  grad=4.344  S_E=1.000 S_U=0.000
+step 11100  loss=3.8472  grad=4.625  S_E=1.000 S_U=0.000
+step 11150  loss=4.8218  grad=4.844  S_E=1.000 S_U=0.000
+step 11200  loss=4.3169  grad=5.531  S_E=1.000 S_U=0.000
+step 11250  loss=4.3576  grad=4.469  S_E=1.000 S_U=0.000
+step 11300  loss=4.3385  grad=5.000  S_E=1.000 S_U=0.000
+step 11350  loss=4.3150  grad=4.531  S_E=1.000 S_U=0.000
+step 11400  loss=4.1758  grad=4.000  S_E=1.000 S_U=0.000
+step 11450  loss=3.3380  grad=4.156  S_E=1.000 S_U=0.000
+step 11500  loss=4.3140  grad=5.312  S_E=1.000 S_U=0.000
+
+  step 11500  val_ppl=16.49
+          val_ppl=16.49
+step 11550  loss=3.6979  grad=4.094  S_E=1.000 S_U=0.000
+step 11600  loss=4.1654  grad=4.531  S_E=1.000 S_U=0.000
+step 11650  loss=4.3383  grad=4.844  S_E=1.000 S_U=0.000
+step 11700  loss=3.5790  grad=3.906  S_E=1.000 S_U=0.000
+step 11750  loss=4.2736  grad=4.031  S_E=1.000 S_U=0.000
+step 11800  loss=4.0957  grad=4.625  S_E=1.000 S_U=0.000
+step 11850  loss=4.1950  grad=5.125  S_E=1.000 S_U=0.000
+step 11900  loss=4.9466  grad=5.094  S_E=1.000 S_U=0.000
+step 11950  loss=4.0099  grad=3.812  S_E=1.000 S_U=0.000
+step 12000  loss=3.9232  grad=4.469  S_E=1.000 S_U=0.000
+
+  step 12000  val_ppl=16.47
+          val_ppl=16.47
+step 12050  loss=3.9157  grad=4.625  S_E=1.000 S_U=0.000
+step 12100  loss=4.3708  grad=4.656  S_E=1.000 S_U=0.000
+step 12150  loss=4.4208  grad=4.031  S_E=1.000 S_U=0.000
+step 12200  loss=4.0390  grad=3.922  S_E=1.000 S_U=0.000
+step 12250  loss=4.1378  grad=4.281  S_E=1.000 S_U=0.000
+step 12300  loss=3.8389  grad=4.719  S_E=1.000 S_U=0.000
+step 12350  loss=4.3721  grad=5.562  S_E=1.000 S_U=0.000
+step 12400  loss=4.1321  grad=4.469  S_E=1.000 S_U=0.000
+step 12450  loss=4.5354  grad=5.094  S_E=1.000 S_U=0.000
+step 12500  loss=4.1949  grad=4.750  S_E=1.000 S_U=0.000
+
+  step 12500  val_ppl=16.49
+          val_ppl=16.49
+step 12550  loss=3.5369  grad=4.250  S_E=1.000 S_U=0.000
+step 12600  loss=4.0876  grad=4.938  S_E=1.000 S_U=0.000
+step 12650  loss=3.6882  grad=4.562  S_E=1.000 S_U=0.000
+step 12700  loss=4.5113  grad=5.406  S_E=1.000 S_U=0.000
+step 12750  loss=4.2444  grad=4.312  S_E=1.000 S_U=0.000
+step 12800  loss=4.5403  grad=5.062  S_E=1.000 S_U=0.000
+step 12850  loss=4.0868  grad=4.469  S_E=1.000 S_U=0.000
+step 12900  loss=4.3263  grad=4.812  S_E=1.000 S_U=0.000
+step 12950  loss=3.9656  grad=4.469  S_E=1.000 S_U=0.000
+step 13000  loss=4.7379  grad=5.000  S_E=1.000 S_U=0.000
+
+  step 13000  val_ppl=16.41
+          val_ppl=16.41
+step 13050  loss=4.2657  grad=4.344  S_E=1.000 S_U=0.000
+step 13100  loss=3.8872  grad=4.438  S_E=1.000 S_U=0.000
+step 13150  loss=4.0169  grad=4.406  S_E=1.000 S_U=0.000
+step 13200  loss=4.2442  grad=4.406  S_E=1.000 S_U=0.000
+step 13250  loss=3.8633  grad=4.000  S_E=1.000 S_U=0.000
+step 13300  loss=4.2859  grad=4.656  S_E=1.000 S_U=0.000
+step 13350  loss=3.9404  grad=4.406  S_E=1.000 S_U=0.000
+step 13400  loss=3.8956  grad=4.438  S_E=1.000 S_U=0.000
+step 13450  loss=4.1379  grad=4.156  S_E=1.000 S_U=0.000
+step 13500  loss=4.1604  grad=4.594  S_E=1.000 S_U=0.000
+
+  step 13500  val_ppl=16.42
+          val_ppl=16.42
+step 13550  loss=3.7651  grad=3.891  S_E=1.000 S_U=0.000
+step 13600  loss=4.0416  grad=4.969  S_E=1.000 S_U=0.000
+step 13650  loss=4.3532  grad=5.094  S_E=1.000 S_U=0.000
+step 13700  loss=3.7752  grad=4.031  S_E=1.000 S_U=0.000
+step 13750  loss=4.0332  grad=4.594  S_E=1.000 S_U=0.000
+step 13800  loss=4.3051  grad=4.531  S_E=1.000 S_U=0.000
+step 13850  loss=3.9993  grad=4.719  S_E=1.000 S_U=0.000
+step 13900  loss=4.2857  grad=4.719  S_E=1.000 S_U=0.000
+step 13950  loss=3.7455  grad=4.469  S_E=1.000 S_U=0.000
+step 14000  loss=3.5362  grad=4.188  S_E=1.000 S_U=0.000
+
+  step 14000  val_ppl=16.39
+          val_ppl=16.39
+step 14050  loss=3.7930  grad=4.219  S_E=1.000 S_U=0.000
+step 14100  loss=4.2010  grad=5.219  S_E=1.000 S_U=0.000
+step 14150  loss=4.2025  grad=4.969  S_E=1.000 S_U=0.000
+step 14200  loss=4.3843  grad=4.938  S_E=1.000 S_U=0.000
+step 14250  loss=3.6682  grad=4.188  S_E=1.000 S_U=0.000
+step 14300  loss=4.6366  grad=5.219  S_E=1.000 S_U=0.000
+step 14350  loss=4.3187  grad=5.219  S_E=1.000 S_U=0.000
+step 14400  loss=4.2949  grad=4.094  S_E=1.000 S_U=0.000
+step 14450  loss=4.0113  grad=5.312  S_E=1.000 S_U=0.000
+step 14500  loss=3.7304  grad=4.438  S_E=1.000 S_U=0.000
+
+  step 14500  val_ppl=16.37
+          val_ppl=16.37
+step 14550  loss=4.0265  grad=4.625  S_E=1.000 S_U=0.000
+step 14600  loss=3.7025  grad=4.656  S_E=1.000 S_U=0.000
+step 14650  loss=4.5273  grad=4.969  S_E=1.000 S_U=0.000
+step 14700  loss=3.8714  grad=5.750  S_E=1.000 S_U=0.000
+step 14750  loss=3.7730  grad=4.406  S_E=1.000 S_U=0.000
+step 14800  loss=3.9486  grad=4.281  S_E=1.000 S_U=0.000
+step 14850  loss=4.5594  grad=4.406  S_E=1.000 S_U=0.000
+step 14900  loss=4.0856  grad=4.531  S_E=1.000 S_U=0.000
+step 14950  loss=3.8585  grad=4.125  S_E=1.000 S_U=0.000
+step 15000  loss=4.5506  grad=4.781  S_E=1.000 S_U=0.000
+
+  step 15000  val_ppl=16.38
+          val_ppl=16.38
+step 15050  loss=4.5750  grad=5.812  S_E=1.000 S_U=0.000
+step 15100  loss=3.7787  grad=3.953  S_E=1.000 S_U=0.000
+step 15150  loss=3.4714  grad=4.094  S_E=1.000 S_U=0.000
+step 15200  loss=4.1990  grad=5.781  S_E=1.000 S_U=0.000
+step 15250  loss=4.0224  grad=4.406  S_E=1.000 S_U=0.000
+step 15300  loss=3.9814  grad=5.438  S_E=1.000 S_U=0.000
+step 15350  loss=4.3606  grad=5.094  S_E=1.000 S_U=0.000
+step 15400  loss=4.5101  grad=5.594  S_E=1.000 S_U=0.000
+step 15450  loss=3.6601  grad=3.797  S_E=1.000 S_U=0.000
+step 15500  loss=4.3004  grad=4.531  S_E=1.000 S_U=0.000
+
+  step 15500  val_ppl=16.35
+          val_ppl=16.35
+step 15550  loss=4.4172  grad=5.469  S_E=1.000 S_U=0.000
+step 15600  loss=3.9946  grad=4.062  S_E=1.000 S_U=0.000
+step 15650  loss=4.1442  grad=4.219  S_E=1.000 S_U=0.000
+step 15700  loss=3.8692  grad=5.250  S_E=1.000 S_U=0.000
+step 15750  loss=4.3781  grad=5.125  S_E=1.000 S_U=0.000
+step 15800  loss=3.9996  grad=3.984  S_E=1.000 S_U=0.000
+step 15850  loss=3.7486  grad=3.953  S_E=1.000 S_U=0.000
+step 15900  loss=4.0172  grad=4.375  S_E=1.000 S_U=0.000
+step 15950  loss=4.3712  grad=4.750  S_E=1.000 S_U=0.000
+step 16000  loss=4.1677  grad=4.562  S_E=1.000 S_U=0.000
+
+  step 16000  val_ppl=16.32
+          val_ppl=16.32
+step 16050  loss=3.9387  grad=5.031  S_E=1.000 S_U=0.000
+step 16100  loss=4.0391  grad=5.219  S_E=1.000 S_U=0.000
+step 16150  loss=4.4400  grad=5.344  S_E=1.000 S_U=0.000
+step 16200  loss=3.9626  grad=4.406  S_E=1.000 S_U=0.000
+step 16250  loss=4.3857  grad=4.750  S_E=1.000 S_U=0.000
+step 16300  loss=4.0949  grad=4.781  S_E=1.000 S_U=0.000
+step 16350  loss=4.6403  grad=6.344  S_E=1.000 S_U=0.000
+step 16400  loss=4.0759  grad=4.844  S_E=1.000 S_U=0.000
+step 16450  loss=4.5050  grad=5.438  S_E=1.000 S_U=0.000
+step 16500  loss=4.6890  grad=5.500  S_E=1.000 S_U=0.000
+
+  step 16500  val_ppl=16.30
+          val_ppl=16.30
+step 16550  loss=4.1907  grad=4.625  S_E=1.000 S_U=0.000
+step 16600  loss=3.7093  grad=4.188  S_E=1.000 S_U=0.000
+step 16650  loss=4.5027  grad=5.125  S_E=1.000 S_U=0.000
+step 16700  loss=3.8150  grad=4.094  S_E=1.000 S_U=0.000
+step 16750  loss=4.0207  grad=3.828  S_E=1.000 S_U=0.000
+step 16800  loss=4.9274  grad=5.844  S_E=1.000 S_U=0.000
+step 16850  loss=3.8229  grad=4.438  S_E=1.000 S_U=0.000
+step 16900  loss=4.0855  grad=4.938  S_E=1.000 S_U=0.000
+step 16950  loss=4.2184  grad=4.844  S_E=1.000 S_U=0.000
+step 17000  loss=4.1790  grad=4.250  S_E=1.000 S_U=0.000
+
+  step 17000  val_ppl=16.30
+          val_ppl=16.30
+step 17050  loss=4.2390  grad=5.906  S_E=1.000 S_U=0.000
+step 17100  loss=4.2563  grad=5.469  S_E=1.000 S_U=0.000
+step 17150  loss=4.1138  grad=4.781  S_E=1.000 S_U=0.000
+step 17200  loss=3.5352  grad=3.984  S_E=1.000 S_U=0.000
+step 17250  loss=4.1662  grad=4.844  S_E=1.000 S_U=0.000
+step 17300  loss=4.0805  grad=4.750  S_E=1.000 S_U=0.000
+step 17350  loss=3.6901  grad=3.969  S_E=1.000 S_U=0.000
+step 17400  loss=4.2958  grad=4.719  S_E=1.000 S_U=0.000
+step 17450  loss=3.8145  grad=3.781  S_E=1.000 S_U=0.000
+step 17500  loss=3.8897  grad=4.656  S_E=1.000 S_U=0.000
+
+  step 17500  val_ppl=16.27
+          val_ppl=16.27
+step 17550  loss=4.1105  grad=5.250  S_E=1.000 S_U=0.000
+step 17600  loss=4.1750  grad=4.125  S_E=1.000 S_U=0.000
+step 17650  loss=3.7741  grad=4.438  S_E=1.000 S_U=0.000
+step 17700  loss=4.4087  grad=5.375  S_E=1.000 S_U=0.000
+step 17750  loss=4.2564  grad=4.656  S_E=1.000 S_U=0.000
+step 17800  loss=4.7953  grad=4.844  S_E=1.000 S_U=0.000
+step 17850  loss=3.5141  grad=4.281  S_E=1.000 S_U=0.000
+step 17900  loss=4.1194  grad=4.625  S_E=1.000 S_U=0.000
+step 17950  loss=4.4795  grad=4.250  S_E=1.000 S_U=0.000
+step 18000  loss=4.0544  grad=4.469  S_E=1.000 S_U=0.000
+
+  step 18000  val_ppl=16.31
+          val_ppl=16.31
+step 18050  loss=3.7724  grad=4.312  S_E=1.000 S_U=0.000
+step 18100  loss=3.6797  grad=4.188  S_E=1.000 S_U=0.000
+step 18150  loss=4.2879  grad=4.844  S_E=1.000 S_U=0.000
+step 18200  loss=3.9275  grad=5.969  S_E=1.000 S_U=0.000
+step 18250  loss=4.3295  grad=4.969  S_E=1.000 S_U=0.000
+step 18300  loss=4.3240  grad=4.781  S_E=1.000 S_U=0.000
+step 18350  loss=3.6551  grad=3.938  S_E=1.000 S_U=0.000
+step 18400  loss=4.3583  grad=4.906  S_E=1.000 S_U=0.000
+step 18450  loss=3.9809  grad=6.250  S_E=1.000 S_U=0.000
+step 18500  loss=4.2977  grad=4.656  S_E=1.000 S_U=0.000
+
+  step 18500  val_ppl=16.25
+          val_ppl=16.25
+step 18550  loss=3.4658  grad=4.125  S_E=1.000 S_U=0.000
+step 18600  loss=3.9127  grad=4.281  S_E=1.000 S_U=0.000
+step 18650  loss=3.9588  grad=4.062  S_E=1.000 S_U=0.000
+step 18700  loss=4.0605  grad=4.938  S_E=1.000 S_U=0.000
+step 18750  loss=3.9749  grad=4.156  S_E=1.000 S_U=0.000
+step 18800  loss=3.9483  grad=4.219  S_E=1.000 S_U=0.000
+step 18850  loss=4.1803  grad=3.953  S_E=1.000 S_U=0.000
+step 18900  loss=4.2594  grad=4.219  S_E=1.000 S_U=0.000
+step 18950  loss=3.5552  grad=4.719  S_E=1.000 S_U=0.000
+step 19000  loss=4.4399  grad=6.094  S_E=1.000 S_U=0.000
+
+  step 19000  val_ppl=16.27
+          val_ppl=16.27
+step 19050  loss=3.9798  grad=4.781  S_E=1.000 S_U=0.000
+step 19100  loss=4.3894  grad=5.969  S_E=1.000 S_U=0.000
+step 19150  loss=4.2854  grad=4.906  S_E=1.000 S_U=0.000
+step 19200  loss=3.0152  grad=3.516  S_E=1.000 S_U=0.000
+step 19250  loss=4.2901  grad=4.500  S_E=1.000 S_U=0.000
+step 19300  loss=4.6730  grad=4.844  S_E=1.000 S_U=0.000
+step 19350  loss=4.0114  grad=4.781  S_E=1.000 S_U=0.000
+step 19400  loss=4.0252  grad=4.406  S_E=1.000 S_U=0.000
+step 19450  loss=4.1075  grad=4.188  S_E=1.000 S_U=0.000
+step 19500  loss=4.3002  grad=4.812  S_E=1.000 S_U=0.000
+
+  step 19500  val_ppl=16.24
+          val_ppl=16.24
+step 19550  loss=3.4951  grad=3.859  S_E=1.000 S_U=0.000
+step 19600  loss=4.1765  grad=5.719  S_E=1.000 S_U=0.000
+step 19650  loss=3.6682  grad=4.094  S_E=1.000 S_U=0.000
+step 19700  loss=4.7181  grad=4.688  S_E=1.000 S_U=0.000
+step 19750  loss=4.1913  grad=4.000  S_E=1.000 S_U=0.000
+step 19800  loss=3.6912  grad=3.969  S_E=1.000 S_U=0.000
+step 19850  loss=3.6951  grad=4.281  S_E=1.000 S_U=0.000
+step 19900  loss=3.8446  grad=4.250  S_E=1.000 S_U=0.000
+step 19950  loss=3.7869  grad=3.844  S_E=1.000 S_U=0.000
+  [final] val_ppl=16.26
+          val_ppl=16.26
+
+── Timing breakdown ─────────────────────────────────
+  component    ms/step   % total   calls
+  ────────── ─────────  ────────  ──────
+  data           23.84     25.2%   20000
+  bandit          0.00      0.0%   20000
+  fwd             6.58      7.0%   20400
+  score           0.64      0.7%     400
+  bwd            63.40     67.1%   20000
+  ────────── ─────────  ────────  ──────
+  TOTAL          94.47    100.0%
+
+  Rescore steps:          400/20000 (2.0% of steps)
+  Cost per rescore:       32.15 ms
+  Amortised scorer:       0.643 ms/step (0.68% of total)
+  Paper claims ~1%:       ✓ within paper claim
+────────────────────────────────────────────────────
+
+Final val PPL (rho1): 16.26
+Scorer overhead: 0.68% of total wall time
+✓ Within paper's ~1% claim

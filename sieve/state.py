@@ -40,24 +40,23 @@ class SieveState:
         )
         self.bandit  = DirichletBandit(
             n_strategies=len(self.scorer_names),
-            n_bins=cfg.n_bins,
-            discount=cfg.discount,
             seed=cfg.seed,
             variance_normalized=cfg.variance_normalized_bandit,
-            var_history_window=cfg.var_history_window,
-            sigma_min=cfg.sigma_min,
-            sigma_max=cfg.sigma_max,
+            vn_eps=cfg.vn_eps,
             sigma_warmup=cfg.sigma_warmup,
         )
         self.mask_cache = MaskCache(cfg.selection_ratio)
 
-        # EMA state for reward normalisation
-        self._ema:       float = 0.0
+        # Previous validation loss, for the reward r = max{0, L_prev − L_val}
         self._prev_loss: Optional[float] = None
 
         # Current sampled weights (re-sampled every rescore_interval steps)
         self.weights = torch.ones(len(self.scorer_names)) / len(self.scorer_names)
         self._last_sample_step: Optional[int] = None
+
+        # Run record for history.json
+        self.sample_log: list[dict] = []   # {"step", "weights"} at each sample
+        self.reward_log: list[dict] = []   # {"step", "val_loss", "reward"} at each update
 
     # ── Hook 1 ────────────────────────────────────────────────────────
     def step_begin(self, step: int, max_steps: int,
@@ -73,6 +72,7 @@ class SieveState:
             )
             self.weights = self.bandit.sample(bin_idx)  # [K] on CPU
             self._last_sample_step = step
+            self.sample_log.append({"step": step, "weights": self.weights.tolist()})
 
     # ── Hook 2 (inside compute_loss) ─────────────────────────────────
     def score_and_mask(
@@ -93,21 +93,19 @@ class SieveState:
         return self.mask_cache.update(scores, self.step, attn_mask)
 
     # ── Hook 3 ────────────────────────────────────────────────────────
-    def on_eval(self, val_loss: float):
-        """Compute EMA-normalised reward and update bandit posterior."""
-        reward = self._ema_reward(val_loss)
-        self.bandit.update(reward)
-
-    def _ema_reward(self, val_loss: float) -> float:
+    def on_eval(self, val_loss: float, step: Optional[int] = None):
+        """
+        Reward the active mixture: r = max{0, L_prev − L_val} (paper Eq. reward).
+        The first evaluation only records L_val (there is no previous loss).
+        """
         if self._prev_loss is None:
             self._prev_loss = val_loss
-            return 0.0
-        raw             = self._prev_loss - val_loss   # +ve = improvement
-        self._ema       = self.cfg.ema_alpha * self._ema + \
-                          (1 - self.cfg.ema_alpha) * abs(raw)
-        reward          = raw / max(self._ema, 1e-6)
+            return
+        reward = max(0.0, self._prev_loss - val_loss)
         self._prev_loss = val_loss
-        return float(reward)
+        self.bandit.update(reward)
+        self.reward_log.append({"step": step, "val_loss": float(val_loss),
+                                "reward": float(reward)})
 
     # ── Diagnostics ───────────────────────────────────────────────────
     def log_dict(self) -> dict:
@@ -140,11 +138,7 @@ class SieveState:
         }
         if getattr(self.bandit, "variance_normalized", False):
             sigma = self.bandit._estimate_sigma(b)
-            out.update({
-                "sieve/sigma_S_E": float(sigma[0]),
-                "sieve/sigma_S_U": float(sigma[1]),
-                "sieve/sigma_S_L": float(sigma[2]),
-                "sieve/sigma_S_D": float(sigma[3]),
-                "sieve/vnts_active": 1,
-            })
+            out.update({f"sieve/sigma_{name}": float(sigma[i])
+                        for i, name in enumerate(self.scorer_names)})
+            out["sieve/vnmix_active"] = 1
         return out

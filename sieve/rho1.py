@@ -1,23 +1,20 @@
 """
 sieve/rho1.py
 
-Rho-1 baseline: S_E-only token selection.
+S_E-only baseline (the paper's "excess-loss-only" baseline; not a
+reproduction of Rho-1, whose reference model is trained on curated data).
 Duck-typed to match SieveState's interface so train_sieve.py works
 without modification to the training loop.
 
 Comparison fairness guarantees:
   - Same codebase, same training loop, same optimizer
-  - Same eval harness (lm-evaluation-harness)
-  - Same MaskCache (per-sequence topk, BOS-position skip)
-  - Same selective_loss (gradient-invariant normalisation)
-  - Only difference: weights = [1, 0, 0, 0] (S_E only, no bandit)
+  - Same MaskCache (per-sequence top-k, recomputed at every step)
+  - Same selective_loss (mean over selected tokens)
+  - Only difference: utility = S_E alone (no mixture, no bandit)
 
-Reference model strategy:
-  Rho-1 original: separate reference model trained on curated corpus.
-  Our implementation: if ref_losses provided in batch (precomputed
-  memmap), use them. Otherwise fall back to raw training NLL, which
-  selects the hardest tokens by current model loss. This is validated
-  as the "self-reference" variant in ESLM 2025.
+Reference model: a frozen off-the-shelf checkpoint (train_sieve.py
+--ref_model, default GPT-2 Small), run on each training batch
+(sieve/reference.py). S_E raises an error if its losses are missing.
 """
 from __future__ import annotations
 import torch
@@ -37,16 +34,16 @@ class Rho1Baseline:
       log_dict() → dict
     """
 
-    # Fixed weights: full weight on S_E, zero on S_U, S_L, S_D
-    _W = torch.tensor([1.0, 0.0, 0.0, 0.0])
+    # Only S_E is computed, with weight 1
+    _W = torch.tensor([1.0])
 
     def __init__(
         self,
         selection_ratio:  float = 0.70,
         freq_table:       Optional[torch.Tensor] = None,
     ):
-        # freq_table not used for S_E, but TokenScorers expects it
-        self.scorers    = TokenScorers(freq_table=None)
+        # freq_table is not used for S_E
+        self.scorers    = TokenScorers(freq_table=None, scorer_names=["S_E"])
         self.mask_cache = MaskCache(selection_ratio)
         self._step      = 0
 
@@ -85,7 +82,7 @@ class Rho1Baseline:
         )
         return self.mask_cache.update(scores, self._step, attn_mask)
 
-    def on_eval(self, val_loss: float):
+    def on_eval(self, val_loss: float, step: Optional[int] = None):
         """No-op: Rho-1 has no bandit posterior to update."""
         pass
 

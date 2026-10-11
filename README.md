@@ -1,27 +1,30 @@
 # SIEVE: Selective Token-Level Training for Language Models
 
-This repository contains a compact, anonymous implementation of SIEVE-style
-selective token training for causal language models.
+This repository contains a compact implementation of selective token training
+for causal language models, used for the paper "Do Adaptive Scorer Mixtures
+Improve Token Selection? A Controlled Study in GPT-2".
 
-SIEVE keeps the full causal context but computes the language-modeling loss only
-on selected token positions. Token selection is driven by a mixture of scorers
-and a contextual Dirichlet Thompson-sampling bandit that adapts the scorer
-weights over training.
+The model keeps the full causal context but computes the language-modeling loss
+only on selected token positions. Token selection is driven by a mixture of four
+scorers whose weights are sampled from a Dirichlet distribution updated from
+validation feedback. To rerun every experiment of the paper, follow
+`RERUN_PLAN.md`.
 
 ## What Is Included
 
-- `sieve/scorers.py`: token-level scoring functions
-- `sieve/bandit.py`: contextual Dirichlet Thompson sampling
+- `sieve/scorers.py`: the four token scorers (S_E, S_U, S_L, S_D) and the S_D controls
+- `sieve/reference.py`: frozen reference model for S_E, run on each batch
+- `sieve/bandit.py`: Dirichlet mixture over scorers (paper Eq. update; VN-Mix)
 - `sieve/mask.py`: per-sequence top-k token mask, recomputed on the current batch at every step
-- `sieve/loss.py`: gradient-invariant selective cross-entropy
-- `sieve/state.py`: SIEVE state object tying scorers, bandit, and masks together
+- `sieve/loss.py`: cross-entropy averaged over the selected tokens
+- `sieve/state.py`: state object tying scorers, mixture and masks together
 - `sieve/loop.py`: framework-free training and evaluation loop
-- `sieve/rho1.py`: rho-1 style excess-loss baseline
-- `prepare_sieve.py`: memmap data preparation for WikiText-2
-- `train_sieve.py`: local training entrypoint for SIEVE and baselines
-
-The repository intentionally excludes generated outputs, model artifacts,
-machine-specific paths, and service-specific execution scripts.
+- `sieve/rho1.py`: excess-loss-only (S_E-only) baseline
+- `scripts/prepare_data.py`: memmap data preparation (WikiText-103, WikiText-2, OpenWebMath)
+- `train_sieve.py`: training entrypoint for the mixtures and baselines
+- `scripts/make_commands.sh`, `scripts/run_array.slurm`: the paper's run grid
+- `scripts/aggregate.py`, `scripts/plot_bandit.py`, `scripts/analyze_selection.py`: tables and figures
+- `tests/`: CPU tests of the scorers, mixture update, reward, loss and training loop
 
 ## Installation
 
@@ -30,13 +33,8 @@ Use Python 3.9 or newer.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-For editable package metadata:
-
-```bash
-pip install -e .
+pip install -e ".[liger]" scipy matplotlib pytest
+python -m pytest -q tests
 ```
 
 ## Quick Start
@@ -44,13 +42,14 @@ pip install -e .
 Prepare WikiText-2 into local memmap files:
 
 ```bash
-python prepare_sieve.py --dataset wikitext2 --data_dir ./data/wikitext2
+python scripts/prepare_data.py --dataset wikitext2 --out ./data/wikitext2 --bigram
 ```
 
-Run a short SIEVE smoke test:
+Run a short smoke test:
 
 ```bash
-python train_sieve.py --dataset wikitext2 --model gpt2 --steps 50 --baseline sieve
+python train_sieve.py --dataset wikitext2 --model gpt2 --steps 300 \
+    --eval_interval 100 --baseline sieve --out_dir runs/smoke
 ```
 
 Compare against baselines:
@@ -63,69 +62,50 @@ python train_sieve.py --dataset wikitext2 --model gpt2 --steps 500 --baseline si
 
 ## Methods
 
-SIEVE combines four token scorers:
+Four token scorers; column t of every scorer describes token t (the loss
+term predicted from position t−1):
 
-- `S_E`: excess loss, using precomputed reference losses when available or
-  current token loss as a fallback
-- `S_U`: prediction entropy
-- `S_L`: inverted logit spread
-- `S_D`: inverse token frequency or configured rarity variant
+- `S_E`: excess loss ℓθ − ℓref, with a frozen reference model (`--ref_model`,
+  default GPT-2 Small) run on the same batch
+- `S_U`: predictive entropy
+- `S_L`: negative logit margin −(logit₁ − logit₂)
+- `S_D`: −log corpus frequency, or a control (`--sd_scorer bigram_freq | random_noise`)
 
-The combined score is:
+Each scorer is z-normalized over the batch tokens, and the utility is
 
 ```text
-score = w_E * S_E + w_U * S_U + w_L * S_L + w_D * S_D
+u = w_E * S_E + w_U * S_U + w_L * S_L + w_D * S_D
 ```
 
-The bandit learns phase-dependent scorer weights. Selection is per sequence,
-not global across the batch, so each sequence contributes approximately the
-same selected-token fraction.
+with w ~ Dir(α) sampled every `rescore_interval` (100) steps. At each validation
+event (every 1000 steps) the active w receives r = max(0, L_prev − L_val) and
+α ← α + r·w. Selection is per sequence (top ⌈αT⌉ positions) and is recomputed
+at every step on the current batch.
 
 ## Loss Normalization
 
-The selective loss is normalized by the full causal-LM token count,
-`B * (T - 1)`, rather than the number of selected tokens:
-
-```text
-loss = sum(selected token losses) / (B * (T - 1))
-```
-
-This avoids accidentally changing the effective learning rate when the
-selection ratio changes.
+The selective loss is the mean NLL over the selected tokens (paper Eq.
+train_loss). Every sequence retains the same number of tokens, so this equals
+the mean of the per-sequence losses.
 
 ## Common Options
 
-```bash
-python train_sieve.py \
-  --dataset wikitext2 \
-  --model gpt2 \
-  --steps 10000 \
-  --alpha 0.7 \
-  --baseline sieve \
-  --seed 42
-```
-
-Useful flags:
-
-- `--alpha`: fraction of token positions selected for loss
+- `--alpha`: fraction of token positions selected for the loss
 - `--baseline`: `sieve`, `rho1`, `clm`, `scalarization`, `sieve_no_se`,
   `su_only`, `sl_only`, or `sd_only`
-- `--eval_interval`: validation interval in steps
-- `--data_fraction`: fraction of the training memmap to sample from
-- `--variance_normalized_bandit`: enable variance-normalized bandit updates
+- `--eval_interval`: validation interval in steps (default 1000)
+- `--variance_normalized_bandit`: VN-Mix update
+- `--out_dir`: write `history.json` (and `final.pt` with `--save_final`)
+- `--log_interval`: steps between log lines and history points
 
 ## Data Format
 
-`prepare_sieve.py` creates:
+`scripts/prepare_data.py` creates:
 
-- `train.bin`: flat `uint16` token array
-- `val.bin`: flat `uint16` token array
-- `meta.json`: dataset metadata
-- `freq.pt`: token rarity table for `S_D`
-- `ref_losses.bin`: optional reference losses for `S_E`
-
-To add another dataset, extend `prepare_dataset()` in `prepare_sieve.py` and
-write the same files into a dataset directory.
+- `train.bin`, `val.bin`: flat `uint16` token arrays
+- `meta.json`: dataset metadata and construction choices
+- `freq.pt`: −log corpus frequency table for `S_D`
+- `bigram_freq.pt` (with `--bigram`): log p(tok | prev) for the bigram control
 
 ## Repository Hygiene
 

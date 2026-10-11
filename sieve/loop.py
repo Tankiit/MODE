@@ -25,6 +25,7 @@ from .data import MemmapDataset
 from .state import SieveState
 from .loss import selective_loss
 from .patience import PatienceMonitor
+from .reference import reference_nll
 
 
 def _dirichlet_entropy(bandit, bin_idx: int) -> Optional[float]:
@@ -98,21 +99,31 @@ def _bandit_variance_snapshot(sieve: Optional[SieveState]) -> Optional[dict]:
     }
 
 
+def _lr_factor(step: int, cfg: SieveConfig) -> float:
+    """Linear warmup over warmup_steps, then cosine decay to min_lr_ratio at max_steps."""
+    if cfg.warmup_steps > 0 and step < cfg.warmup_steps:
+        return (step + 1) / cfg.warmup_steps
+    span = max(1, cfg.max_steps - cfg.warmup_steps)
+    progress = min(1.0, (step - cfg.warmup_steps) / span)
+    return cfg.min_lr_ratio + (1.0 - cfg.min_lr_ratio) * 0.5 * (1.0 + math.cos(math.pi * progress))
+
+
 def evaluate(
     model:       torch.nn.Module,
     dataset:     MemmapDataset,
     device:      torch.device,
-    max_batches: int = 50,
+    max_batches: Optional[int] = 50,
 ) -> float:
-    """Fast val PPL — capped at max_batches during training."""
+    """Validation PPL over at most max_batches batches of 8 sequences (None = whole set)."""
     model.eval()
     total_nll, total_tok, n = 0.0, 0, 0
     with torch.no_grad():
         for batch in dataset.val_batches(8, device):
             ids  = batch["input_ids"]
             B, T = ids.shape
-            # Autocast where available; cast logits to float32 for CE
-            with torch.autocast(device.type, enabled=(device.type == 'cuda')):
+            # Same bf16 autocast as training; cast logits to float32 for CE
+            with torch.autocast(device.type, dtype=torch.bfloat16,
+                                enabled=(device.type == 'cuda')):
                 out = model(input_ids=ids, labels=None, use_cache=False)
             V    = out.logits.size(-1)
             nll  = F.cross_entropy(
@@ -136,6 +147,7 @@ def train(
     cfg:      SieveConfig,
     dev_cfg:  DeviceCfg,
     sieve:    Optional[SieveState] = None,
+    ref_model: Optional[torch.nn.Module] = None,
 ) -> dict:
     """
     Main SIEVE training loop with fine-grained profiling.
@@ -143,7 +155,7 @@ def train(
     Three hooks (labelled):
       Hook 1  step_begin()     — bandit context encode + Dirichlet sample
       Hook 2  score_and_mask() — token scoring + topk mask (every step)
-      Hook 3  on_eval()        — EMA-normalised reward → Dirichlet update
+      Hook 3  on_eval()        — r = max(0, L_prev − L_val) → α ← α + r·w
 
     Timing breakdown (all measured separately):
       t_data:   sample_batch + H2D transfer
@@ -165,10 +177,14 @@ def train(
 
     device = dev_cfg.device
     optim  = torch.optim.AdamW(
-        model.parameters(), lr=cfg.lr, weight_decay=0.1
+        model.parameters(), lr=cfg.lr, betas=(cfg.beta1, cfg.beta2),
+        weight_decay=cfg.weight_decay,
     )
+    sched  = torch.optim.lr_scheduler.LambdaLR(optim, lambda s: _lr_factor(s, cfg))
 
-    history      = {"loss": [], "val_ppl": [], "weights": [], "variance": []}
+    history      = {"loss": [], "log_steps": [], "lr": [],
+                    "val_ppl": [], "eval_steps": [],
+                    "weights": [], "variance": []}
     prev_loss    = 1.0
     prev_grad    = 0.0
     last_val_ppl = float("nan")
@@ -202,8 +218,8 @@ def train(
     t_wall = time.time()
     pf: dict = {}
 
-    # Enable fused loss via model.loss on CUDA if Liger is active.
-    # We detect by backend; model was patched in train_sieve.py.
+    # Full CLM on CUDA uses the model's internal (Liger-fused) loss; any
+    # selector needs the logits, so it always takes the standard path.
     use_fused_loss = (dev_cfg.backend == "cuda")
 
     def _build_masked_labels(input_ids: torch.Tensor,
@@ -239,6 +255,13 @@ def train(
         T["data"] += perf_counter() - t0
         N["data"] += 1
 
+        # ── Reference losses for S_E, on the current batch ────────────
+        if ref_model is not None:
+            t0 = perf_counter()
+            ref_losses = reference_nll(ref_model, input_ids, dev_cfg.autocast)
+            T["ref"] += perf_counter() - t0
+            N["ref"] += 1
+
         # ── Forward ───────────────────────────────────────────────────
         optim.zero_grad(set_to_none=True)
         t0 = perf_counter()
@@ -273,19 +296,8 @@ def train(
                 T["score"] += perf_counter() - t1
                 N["score"] += 1
 
-            if use_fused_loss:
-                # ── Loss: same normalisation as the model's internal loss
-                # on CUDA (mean over the selected tokens).
-                labels = _build_masked_labels(input_ids, mask)
-                V = logits.size(-1)
-                loss = F.cross_entropy(
-                    logits[:, :-1].float().reshape(-1, V),
-                    labels[:, 1:].reshape(-1),
-                    ignore_index=-100,
-                )
-            else:
-                # ── Loss: gradient-invariant selective CE ───────────
-                loss = selective_loss(logits, input_ids, mask)
+            # ── Loss: mean NLL over the selected tokens (Eq. train_loss)
+            loss = selective_loss(logits, input_ids, mask)
 
         # ── Backward + optimizer ──────────────────────────────────────
         t0 = perf_counter()
@@ -293,7 +305,9 @@ def train(
         prev_grad = torch.nn.utils.clip_grad_norm_(
             model.parameters(), cfg.grad_clip
         ).item()
+        lr_now = optim.param_groups[0]["lr"]
         optim.step()
+        sched.step()
         # Synchronising MPS every step hurts throughput significantly.
         # Keep it only when profiling is explicitly enabled.
         if device.type == "mps" and cfg.profile_dataloader:
@@ -310,12 +324,15 @@ def train(
                 "step":    step,
                 "loss":    prev_loss,
                 "grad":    prev_grad,
+                "lr":      lr_now,
                 "elapsed": elapsed,
             }
             if sieve is not None:
                 log.update(sieve.log_dict())
             log_fn(log)
             history["loss"].append(prev_loss)
+            history["log_steps"].append(step)
+            history["lr"].append(lr_now)
             if _has_bandit(sieve):
                 history["weights"].append(
                     sieve.bandit.expected_weights(
@@ -328,7 +345,7 @@ def train(
 
         # ── tqdm postfix — live overhead monitoring ────────────────────
         if _use_tqdm and step % 50 == 0 and step > 0:
-            total_t   = sum(T[k] for k in ["data","bandit","fwd","score","bwd"])
+            total_t   = sum(T[k] for k in ["data","ref","bandit","fwd","score","bwd"])
             score_pct = 100.0 * T["score"] / max(total_t, 1e-9)
 
             pf = {
@@ -344,11 +361,18 @@ def train(
             pbar.set_postfix(pf)
 
         # ── Evaluation + Hook 3 ───────────────────────────────────────
-        if step > 0 and step % cfg.eval_interval == 0:
-            val_ppl = evaluate(model, val_ds, device, max_batches=50)
+        # Evaluate after every eval_interval completed steps, i.e. before
+        # the next step re-samples the weights: the reward then credits the
+        # mixture that was active over the last rescore window. (Evaluating
+        # at step % eval_interval == 0 would credit a mixture sampled at the
+        # start of that same step, which had driven a single update.)
+        done = step + 1
+        if done % cfg.eval_interval == 0:
+            val_ppl = evaluate(model, val_ds, device, max_batches=cfg.eval_batches)
             last_val_ppl = val_ppl
             history["val_ppl"].append(val_ppl)
-            print(f"\n  step {step:5d}  val_ppl={val_ppl:.2f}"
+            history["eval_steps"].append(done)
+            print(f"\n  step {done:5d}  val_ppl={val_ppl:.2f}"
                   + (f"  dom={pf.get('dom', '?')}" if _has_bandit(sieve) else ""))
 
             w_snap: Optional[torch.Tensor] = None
@@ -362,44 +386,52 @@ def train(
                     ent_snap = float(sieve.bandit.posterior_entropy(b))
 
             if patience is not None:
-                patience.update(step, val_ppl, w_snap, ent_snap)
+                patience.update(done, val_ppl, w_snap, ent_snap)
 
             if sieve is not None:
-                sieve.on_eval(math.log(val_ppl))   # pass log-PPL as proxy loss
+                # Validation loss = mean token NLL = log(PPL)
+                sieve.on_eval(math.log(val_ppl), step=done)
 
-            ev_log = {"step": step, "val/ppl": val_ppl}
+            ev_log = {"step": done, "val/ppl": val_ppl}
             if patience is not None:
                 ev_log.update(patience.log_dict())
             log_fn(ev_log)
 
             if patience is not None:
-                stop, reason = patience.should_stop(step)
+                stop, reason = patience.should_stop(done)
                 if stop:
-                    print(f"\n[patience] early stop at step {step}: {reason}")
+                    print(f"\n[patience] early stop at step {done}: {reason}")
                     history["early_stop"] = True
-                    history["early_stop_step"] = step
+                    history["early_stop_step"] = done
                     history["early_stop_reason"] = reason
                     stopped_early = True
                     break
 
-    # Final evaluation (skipped if we already evaluated at the stop step)
-    if stopped_early:
-        val_ppl = history["val_ppl"][-1]
-        print(f"  [final] val_ppl={val_ppl:.2f}  (patience early stop)")
-        log_fn({"step": step, "val/ppl": val_ppl})
-    else:
-        val_ppl = evaluate(model, val_ds, device, max_batches=50)
-        history["val_ppl"].append(val_ppl)
-        print(f"  [final] val_ppl={val_ppl:.2f}")
-        log_fn({"step": cfg.max_steps, "val/ppl": val_ppl})
+    # ── Final evaluation on the whole validation set (reported number) ──
+    final_ppl = evaluate(model, val_ds, device, max_batches=None)
+    history["final_val_ppl"] = final_ppl
+    history["final_val_loss"] = math.log(final_ppl)
+    history["n_steps"] = n_loop_steps
+    print(f"  [final] val_ppl={final_ppl:.3f}  (full validation set, {n_loop_steps} steps)"
+          + ("  (patience early stop)" if stopped_early else ""))
+    log_fn({"step": n_loop_steps, "val/ppl": final_ppl})
 
-    # ── Timing summary at end ─────────────────────────────────────────
+    # ── Run record + timing summary ───────────────────────────────────
     variance = _bandit_variance_snapshot(sieve)
     if variance is not None:
         history["variance"].append(variance)
+    if sieve is not None:
+        history["sample_log"] = list(getattr(sieve, "sample_log", []))
+        history["reward_log"] = list(getattr(sieve, "reward_log", []))
+    if _has_bandit(sieve):
+        history["alpha_final"] = sieve.bandit.alpha[0].tolist()
+        history["expected_weights_final"] = sieve.bandit.expected_weights().tolist()
+        history["scorer_names"] = list(getattr(sieve, "scorer_names", []))
     _print_timing_summary(T, N, n_loop_steps)
     _print_variance_summary(history)
     history["timing"] = dict(T)
+    history["timing_counts"] = dict(N)
+    history["wall_time_s"] = time.time() - t_wall
 
     return history
 
@@ -437,7 +469,7 @@ def _print_timing_summary(T: dict, N: dict, max_steps: int) -> dict:
       score:   scoring + top-k on the current batch, at every step
       bwd:     ~100-150 ms/step
     """
-    components = ["data", "bandit", "fwd", "score", "bwd"]
+    components = ["data", "ref", "bandit", "fwd", "score", "bwd"]
     total      = sum(T.get(k, 0.0) for k in components)
     if total < 1e-9 or max_steps == 0:
         return {}

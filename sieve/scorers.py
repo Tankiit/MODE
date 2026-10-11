@@ -1,16 +1,14 @@
 """
 sieve/scorers.py
 
-Four token-level scorers. All computed in-place from training logits —
-zero extra forward passes for S_U, S_L, S_D.
-S_E needs either ref_losses (precomputed) or falls back to raw NLL.
+Four token-level scorers (paper §3), computed from the training logits.
+S_E also needs the per-token losses of the frozen reference model on the
+same batch (sieve/reference.py).
 
-FIX applied: score_entropy now uses exp_() in-place to avoid
-materialising a second [B,T,V] tensor. For GPT-2 Large (B=8, T=512,
-V=50257) this saves ~820 MB peak GPU memory during scoring.
-
-Original:  p = log_p.exp()          ← 820 MB extra alloc
-Fixed:     entropy = -(log_p.exp_() * log_p).sum(-1)  ← reuses log_p buffer
+Alignment convention: every scorer returns a [B, T] tensor whose column t
+scores token t, i.e. the loss term (logits[t-1], input_ids[t]) that
+mask[t] selects. Model-state scorers are therefore computed from
+logits[:, :-1] and padded on the left; column 0 is never selected.
 """
 from __future__ import annotations
 import torch
@@ -27,15 +25,13 @@ class TokenScorers:
 
     def __init__(
         self,
-        freq_table:  Optional[torch.Tensor] = None,   # [V] log-IDF on CPU
+        freq_table:  Optional[torch.Tensor] = None,   # [V] −log corpus frequency, on CPU
         bigram_table: Optional[dict] = None,
-        topk_spread: int = 10,
         sd_scorer:   str = "inv_freq",
         scorer_names: Optional[list[str]] = None,
     ):
         self.freq_table  = freq_table
         self.bigram_table = bigram_table
-        self.topk_spread = topk_spread
         self.sd_scorer   = sd_scorer
         self.scorer_names = scorer_names or ["S_E", "S_U", "S_L", "S_D"]
         self._noise_gen: Optional[torch.Generator] = None
@@ -46,52 +42,55 @@ class TokenScorers:
         self,
         logits:     torch.Tensor,               # [B, T, V] float32
         input_ids:  torch.Tensor,               # [B, T]
-        ref_losses: Optional[torch.Tensor],     # [B, T] float32, or None
+        ref_losses: Optional[torch.Tensor],     # [B, T] float32
     ) -> torch.Tensor:                          # [B, T]
+        """S_E = ℓ_θ − ℓ_ref (paper §3), column t scores token t."""
+        if ref_losses is None:
+            raise ValueError(
+                "S_E needs reference losses: pass ref_model to sieve.loop.train "
+                "(train_sieve.py loads --ref_model for selectors that use S_E)"
+            )
         B, T, V = logits.shape
         train_nll = F.cross_entropy(
             logits[:, :-1].reshape(-1, V),
             input_ids[:, 1:].reshape(-1),
             reduction="none",
         ).reshape(B, T - 1)                    # [B, T-1]
-
-        if ref_losses is not None:
-            excess = (train_nll - ref_losses[:, 1:]).clamp(min=0.0)
-        else:
-            excess = train_nll                 # fallback: raw training loss
-
+        excess = train_nll - ref_losses[:, 1:]
         return F.pad(excess, (1, 0), value=0.0)   # [B, T]
 
-    # ── S_U: Prediction Entropy — FIXED ─────────────────────────────
+    # ── S_U: Predictive Entropy ──────────────────────────────────────
     @torch.no_grad()
     def score_entropy(
         self,
         logits: torch.Tensor,   # [B, T, V] float32
     ) -> torch.Tensor:          # [B, T]
         """
-        Shannon entropy H = -Σ p·log p.
+        Shannon entropy H = -Σ p·log p of the distribution that predicts
+        token t (logits[t-1]); column 0 is padding.
 
-        Memory: F.log_softmax uses a fused kernel — allocates ONE [B,T,V]
-        buffer beyond the input logits. Then exp_() converts log_p → p
-        IN PLACE, reusing that buffer. No second [B,T,V] allocation.
-
-        Original code: p = log_p.exp()  ← separate alloc, 820 MB extra
-        Fixed code:    log_p.exp_()     ← in-place, 0 MB extra
+        Note: the earlier `-(log_p.exp_() * log_p)` overwrote log_p in place
+        and therefore computed -Σ p², not the entropy. The einsum avoids a
+        third [B,T,V] temporary.
         """
-        log_p   = F.log_softmax(logits, dim=-1)      # [B, T, V] — one alloc
-        entropy = -(log_p.exp_() * log_p).sum(dim=-1) # exp_ in-place [B, T]
-        return entropy
+        log_p   = F.log_softmax(logits[:, :-1], dim=-1)   # [B, T-1, V]
+        p       = log_p.exp()
+        entropy = -torch.einsum("btv,btv->bt", p, log_p)  # [B, T-1]
+        return F.pad(entropy, (1, 0), value=0.0)          # [B, T]
 
-    # ── S_L: Inverted Logit Spread ───────────────────────────────────
+    # ── S_L: Negative Logit Margin ───────────────────────────────────
     @torch.no_grad()
     def score_logit_spread(
         self,
         logits: torch.Tensor,   # [B, T, V] float32
     ) -> torch.Tensor:          # [B, T]
-        # topk(10) only loads 10/50257 values — no V-dim allocation
-        topk, _ = logits.topk(self.topk_spread, dim=-1)   # [B, T, k]
-        spread   = topk[..., 0] - topk[..., -1]
-        return 1.0 / (spread + 1e-6)
+        """
+        S_L = −(largest logit − second-largest logit) of the distribution
+        that predicts token t (paper §3); column 0 is padding.
+        """
+        top2, _ = logits[:, :-1].topk(2, dim=-1)          # [B, T-1, 2]
+        margin  = top2[..., 0] - top2[..., 1]
+        return F.pad(-margin, (1, 0), value=0.0)          # [B, T]
 
     # ── S_D: Inverse Token Frequency ────────────────────────────────
     @torch.no_grad()
@@ -100,20 +99,16 @@ class TokenScorers:
         input_ids: torch.Tensor,   # [B, T]
         device:    torch.device,
     ) -> torch.Tensor:             # [B, T]
-        if self.freq_table is not None:
-            # Corpus-level log-IDF — O(B*T) lookup, no recomputation.
-            # Keep table on the same device to avoid D2H/H2D thrash.
-            if self.freq_table.device != device:
-                self.freq_table = self.freq_table.to(device, dtype=torch.float32)
-            return self.freq_table[input_ids]
-        else:
-            # Within-batch fallback (high variance — use corpus table in prod)
-            B, T   = input_ids.shape
-            V      = 50257   # GPT-2 default; harmless for TinyLlama (rounds down)
-            flat   = input_ids.reshape(-1)
-            counts = torch.bincount(flat, minlength=V).float()
-            freq   = counts[flat] / (B * T)
-            return (1.0 / (freq + 1e-8)).reshape(B, T)
+        """S_D = −log of the token's empirical corpus frequency (paper §3)."""
+        if self.freq_table is None:
+            raise ValueError(
+                "S_D needs the corpus table <data_dir>/freq.pt "
+                "(written by scripts/prepare_data.py)"
+            )
+        # Keep table on the same device to avoid D2H/H2D thrash.
+        if self.freq_table.device != device:
+            self.freq_table = self.freq_table.to(device, dtype=torch.float32)
+        return self.freq_table[input_ids]
 
     # ── S_D variants for constant-arm controls ───────────────────────
     @torch.no_grad()
@@ -240,10 +235,12 @@ class TokenScorers:
         # Stack → [B, T, K]
         raw  = torch.stack(selected, dim=-1)
 
-        # Z-score normalise each scorer across (batch, time)
-        # Prevents high-variance scorers from dominating weighted sum
-        mean = raw.mean(dim=(0, 1), keepdim=True)         # [1, 1, 4]
-        std  = raw.std(dim=(0, 1), keepdim=True).clamp(min=1e-6)
+        # Z-score normalise each scorer over the batch tokens (paper §3).
+        # Column 0 has no loss term (padding), so it is excluded from the
+        # statistics; it is never selected by MaskCache either.
+        inner = raw[:, 1:]
+        mean = inner.mean(dim=(0, 1), keepdim=True)       # [1, 1, K]
+        std  = inner.std(dim=(0, 1), keepdim=True).clamp(min=1e-6)
         norm = (raw - mean) / std
 
         # Weighted sum → [B, T]

@@ -10,6 +10,9 @@ data/
 outputs/
 runs/
 logs/
+results/
+figs/
+commands_*.txt
 *.log
 
 *.bin

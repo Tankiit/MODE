@@ -1,4 +1,4 @@
-"""Single source of truth for all hyperparameters."""
+"""Single source of truth for all hyperparameters (defaults follow the paper, §3 and App. B)."""
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -6,40 +6,41 @@ from typing import Optional
 @dataclass
 class SieveConfig:
     # ── Selection ─────────────────────────────────────────────────────
-    selection_ratio:    float = 0.70   # α — fraction of tokens kept
-    rescore_interval:   int   = 50     # Δ — steps between bandit weight re-samples (the mask is recomputed every step)
+    selection_ratio:    float = 0.70   # α — fraction of tokens kept per sequence
+    rescore_interval:   int   = 100    # T_rescore — steps between mixture-weight samples
+                                       # (scores and mask are recomputed at every step)
 
-    # ── Bandit ────────────────────────────────────────────────────────
+    # ── Mixture (single Dirichlet, paper Eq. update / reward) ──────────
     n_strategies:       int   = 4      # K — S_E, S_U, S_L, S_D
     scorer_names:       list[str] = field(default_factory=lambda: ["S_E", "S_U", "S_L", "S_D"])
-    n_context_bits:     int   = 16     # binary state encoding width
-    n_bins:             int   = 16     # context bins (2^4 phase bits)
-    discount:           float = 0.95   # γ — posterior discount per update
-    ema_alpha:          float = 0.99   # EMA for reward normalisation
-    variance_normalized_bandit: bool = False
-    var_history_window: int   = 10
-    sigma_min:          float = 0.01
-    sigma_max:          float = 10.0
-    sigma_warmup:       int   = 3
+    variance_normalized_bandit: bool = False   # VN-Mix (paper Eq. vnts)
+    vn_eps:             float = 1e-3   # ε in Eq. vnts
+    sigma_warmup:       int   = 2      # VN-Mix: σ̂ = 1 until this many rewards are observed
 
     # ── Training ──────────────────────────────────────────────────────
-    max_steps:          int   = 10_000
-    eval_interval:      int   = 500    # steps between val PPL evals
-    log_interval:       int   = 50
+    max_steps:          int   = 25_000
+    eval_interval:      int   = 1000   # T_val — steps between validation evaluations
+    eval_batches:       int   = 50     # batches per intermediate evaluation (final eval uses all)
+    log_interval:       int   = 100
     profile_dataloader: bool  = False  # time sample_batch vs compute (syncs CUDA when True)
     batch_size:         int   = 8
     seq_len:            int   = 1024
     lr:                 float = 3e-4
+    beta1:              float = 0.9
+    beta2:              float = 0.95
+    weight_decay:       float = 0.1
+    warmup_steps:       int   = 500    # linear warmup, then cosine decay
+    min_lr_ratio:       float = 0.1    # cosine decays to 10% of peak at max_steps
     grad_clip:          float = 1.0
     seed:               int   = 42
 
     # ── Data ──────────────────────────────────────────────────────────
     data_dir:           str   = "./data/wikitext2"
     data_fraction:      float = 1.0            # train only: fraction of memmap tokens to use
-    freq_table_path:    Optional[str] = None   # set by prepare.py
+    freq_table_path:    Optional[str] = None   # freq.pt, written by scripts/prepare_data.py
     ref_losses_path:    Optional[str] = None   # S_E offline cache
     sd_scorer:          str   = "inv_freq"     # inv_freq | bigram_freq | pos_inv_freq | random_noise
-    bigram_table_path:  Optional[str] = None   # cached exact bigram log-frequency table
+    bigram_table_path:  Optional[str] = None   # cached bigram log-probability table
 
     # ── Model ─────────────────────────────────────────────────────────
     model_name:         str   = "gpt2"

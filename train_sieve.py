@@ -1,5 +1,7 @@
 """Local training entrypoint for SIEVE and baseline comparisons."""
-import argparse, math, random
+import argparse, json, math, random
+from dataclasses import asdict
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -10,7 +12,8 @@ from sieve.device import get_cfg
 from sieve.data import MemmapDataset
 from sieve.state import SieveState
 from sieve.loop import train
-from sieve.rho1 import Rho1Baseline    # now exists
+from sieve.rho1 import Rho1Baseline
+from sieve.reference import load_reference
 
 MODEL_NAMES = {
     "gpt2":      "gpt2",
@@ -73,12 +76,10 @@ def main():
     p.add_argument(
         "--variance_normalized_bandit",
         action="store_true",
-        help="Use VN-TS bandit updates to counter low-variance arm bias.",
+        help="VN-Mix: variance-normalized pseudo-count update (paper Eq. vnts).",
     )
-    p.add_argument("--var_history_window", type=int, default=10)
-    p.add_argument("--sigma_min", type=float, default=0.01)
-    p.add_argument("--sigma_max", type=float, default=10.0)
-    p.add_argument("--sigma_warmup", type=int, default=3)
+    p.add_argument("--sigma_warmup", type=int, default=2,
+                   help="VN-Mix: sigma = 1 until this many rewards are observed")
     p.add_argument(
         "--sd_scorer",
         default="inv_freq",
@@ -95,7 +96,21 @@ def main():
         default="2_of_3",
         choices=["2_of_3", "ppl_only", "weights_only", "entropy_only"],
     )
+    p.add_argument("--ref_model", default="gpt2",
+                   help="Frozen reference model for S_E (paper: GPT-2 Small)")
+    p.add_argument("--log_interval", type=int, default=None,
+                   help="Steps between log lines / history points (default: config)")
+    p.add_argument("--out_dir", default=None,
+                   help="Write history.json (and final.pt with --save_final) here")
+    p.add_argument("--save_final", action="store_true",
+                   help="Save the final model state_dict to <out_dir>/final.pt")
+    p.add_argument("--batch_size", type=int, default=None,
+                   help="Override the per-model batch size (tests only; the grid uses the defaults)")
+    p.add_argument("--seq_len", type=int, default=None,
+                   help="Override the sequence length (tests only; the grid uses 1024)")
     args = p.parse_args()
+    if args.save_final and not args.out_dir:
+        p.error("--save_final requires --out_dir")
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -113,7 +128,7 @@ def main():
         model_name         = MODEL_NAMES[args.model],
         data_dir           = DATASET_DIRS[args.dataset],
         max_steps          = args.steps,
-        batch_size         = BATCH_SIZES[args.model],
+        batch_size         = args.batch_size or BATCH_SIZES[args.model],
         selection_ratio    = args.alpha,
         patience_enable      = args.patience,
         patience_window      = args.patience_window,
@@ -126,9 +141,6 @@ def main():
         sd_scorer          = args.sd_scorer,
         bigram_table_path  = args.bigram_table_path,
         variance_normalized_bandit = args.variance_normalized_bandit,
-        var_history_window = args.var_history_window,
-        sigma_min          = args.sigma_min,
-        sigma_max          = args.sigma_max,
         sigma_warmup       = args.sigma_warmup,
         seed               = args.seed,
         profile_dataloader = args.profile_data,
@@ -139,6 +151,10 @@ def main():
     )
     if args.eval_interval is not None:
         cfg.eval_interval = args.eval_interval
+    if args.log_interval is not None:
+        cfg.log_interval = args.log_interval
+    if args.seq_len is not None:
+        cfg.seq_len = args.seq_len
     if args.baseline == "sieve_no_se":
         cfg.scorer_names = ["S_U", "S_L", "S_D"]
         cfg.n_strategies = 3
@@ -172,37 +188,11 @@ def main():
             )
 
     # ── Model ─────────────────────────────────────────────────────────
-    tokenizer_name = TOKENIZER_NAMES.get(args.model, cfg.model_name)
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
-    if args.model == "nanogpt":
-        model_cfg = GPT2Config(
-            vocab_size=len(tokenizer),
-            n_positions=cfg.seq_len,
-            n_ctx=cfg.seq_len,
-            n_embd=384,
-            n_layer=6,
-            n_head=6,
-            resid_pdrop=0.0,
-            embd_pdrop=0.0,
-            attn_pdrop=0.0,
-            bos_token_id=tokenizer.bos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.pad_token_id,
-        )
-        model = GPT2LMHeadModel(model_cfg).to(device=device, dtype=dev_cfg.dtype).train()
-        print(
-            f"[nanogpt] initialized from scratch "
-            f"({sum(p.numel() for p in model.parameters())/1e6:.1f}M params)"
-        )
-    else:
-        model = AutoModelForCausalLM.from_pretrained(
-            cfg.model_name,
-            dtype                  = dev_cfg.dtype,
-            attn_implementation    = "sdpa",
-        ).to(device).train()
+    # float32 master weights; the forward runs under bf16 autocast on CUDA
+    # (DeviceCfg.autocast), i.e. bf16 activations + fp32 weights (App. B).
+    model = build_model(args.model, cfg.seq_len, device).train()
+    print(f"[model] {args.model}: {sum(p.numel() for p in model.parameters())/1e6:.1f}M params, "
+          f"weights {next(model.parameters()).dtype}")
 
     # Liger: fused LM-head / CE backward on CUDA for GPT-2 (often ~40–60% faster).
     # Scoring (SIEVE hooks) unchanged — same logits path. Install: pip install liger-kernel
@@ -219,11 +209,80 @@ def main():
     # ── Baseline construction ─────────────────────────────────────────
     sieve = _build_selector(args.baseline, cfg, device)
 
+    # ── Reference model for S_E (only for selectors that use S_E) ─────
+    ref_model = None
+    uses_se = args.baseline == "rho1" or (
+        sieve is not None and "S_E" in getattr(sieve, "scorer_names", []))
+    if uses_se:
+        ref_model = load_reference(args.ref_model, device)
+        print(f"[ref] S_E reference model: {args.ref_model} (frozen, run on each batch)")
+
     # ── Train ─────────────────────────────────────────────────────────
-    history = train(model, train_ds, val_ds, cfg, dev_cfg, sieve=sieve)
+    history = train(model, train_ds, val_ds, cfg, dev_cfg, sieve=sieve,
+                    ref_model=ref_model)
+
+    # ── Outputs ───────────────────────────────────────────────────────
+    if args.out_dir:
+        out = Path(args.out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        if args.save_final:
+            torch.save(model.state_dict(), out / "final.pt")
+        record = {"args": vars(args), "config": asdict(cfg), "history": _jsonable(history)}
+        # history.json is written last and atomically: run_array.slurm uses
+        # its presence to skip finished runs.
+        tmp = out / "history.json.tmp"
+        tmp.write_text(json.dumps(record, indent=1))
+        tmp.replace(out / "history.json")
+        print(f"[out] wrote {out / 'history.json'}"
+              + (f" and {out / 'final.pt'}" if args.save_final else ""))
 
     # ── Summary ───────────────────────────────────────────────────────
     _print_summary(history, args.baseline)
+
+
+def build_model(model_key: str, seq_len: int, device) -> torch.nn.Module:
+    """
+    Build the model with float32 weights (also used by scripts/analyze_selection.py).
+    gpt2 / gpt2l start from the public pretrained checkpoints; nanogpt is a
+    small randomly initialised GPT-2 used for tests.
+    """
+    if model_key == "nanogpt":
+        tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAMES["nanogpt"])
+        model_cfg = GPT2Config(
+            vocab_size=len(tokenizer),
+            n_positions=seq_len,
+            n_ctx=seq_len,
+            n_embd=384,
+            n_layer=6,
+            n_head=6,
+            resid_pdrop=0.0,
+            embd_pdrop=0.0,
+            attn_pdrop=0.0,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id,
+        )
+        return GPT2LMHeadModel(model_cfg).to(device=device, dtype=torch.float32)
+    return AutoModelForCausalLM.from_pretrained(
+        MODEL_NAMES[model_key],
+        dtype               = torch.float32,
+        attn_implementation = "sdpa",
+    ).to(device)
+
+
+def _jsonable(x):
+    """Recursively convert numpy / torch values so that json.dumps works."""
+    if isinstance(x, dict):
+        return {str(k): _jsonable(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_jsonable(v) for v in x]
+    if isinstance(x, torch.Tensor):
+        return x.tolist()
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+    if isinstance(x, np.generic):
+        return x.item()
+    return x
 
 
 def _build_selector(baseline: str, cfg: SieveConfig, device):
@@ -291,9 +350,8 @@ def _find_bigram_table(data_dir: str) -> str | None:
 
 
 def _print_summary(history: dict, baseline: str):
-    if history["val_ppl"]:
-        final = history["val_ppl"][-1]
-        print(f"\nFinal val PPL ({baseline}): {final:.2f}")
+    if "final_val_ppl" in history:
+        print(f"\nFinal val PPL ({baseline}, full validation set): {history['final_val_ppl']:.3f}")
 
     if history.get("weights"):
         w = history["weights"][-1]

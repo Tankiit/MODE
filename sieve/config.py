@@ -7,7 +7,7 @@ from typing import Optional
 class SieveConfig:
     # ── Selection ─────────────────────────────────────────────────────
     selection_ratio:    float = 0.70   # α — fraction of tokens kept
-    rescore_interval:   int   = 50     # Δ — steps between mask refreshes
+    rescore_interval:   int   = 50     # Δ — steps between bandit weight re-samples (the mask is recomputed every step)
 
     # ── Bandit ────────────────────────────────────────────────────────
     n_strategies:       int   = 4      # K — S_E, S_U, S_L, S_D

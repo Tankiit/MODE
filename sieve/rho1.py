@@ -43,12 +43,11 @@ class Rho1Baseline:
     def __init__(
         self,
         selection_ratio:  float = 0.70,
-        rescore_interval: int   = 50,
         freq_table:       Optional[torch.Tensor] = None,
     ):
         # freq_table not used for S_E, but TokenScorers expects it
         self.scorers    = TokenScorers(freq_table=None)
-        self.mask_cache = MaskCache(selection_ratio, rescore_interval)
+        self.mask_cache = MaskCache(selection_ratio)
         self._step      = 0
 
     # ── SieveState interface ──────────────────────────────────────────
@@ -72,12 +71,9 @@ class Rho1Baseline:
         attn_mask:  Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
-        Select top-α tokens by S_E score.
-        Reuses the mask for rescore_interval steps (same as SIEVE).
+        Select top-α tokens of the current batch by S_E score.
+        Recomputed at every step (same as SIEVE).
         """
-        if not self.mask_cache.needs_rescore(self._step):
-            return self.mask_cache.mask
-
         device = logits.device
         w      = self._W.to(device)
 

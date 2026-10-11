@@ -142,20 +142,20 @@ def train(
 
     Three hooks (labelled):
       Hook 1  step_begin()     — bandit context encode + Dirichlet sample
-      Hook 2  score_and_mask() — token scoring + topk mask (cached Δ steps)
+      Hook 2  score_and_mask() — token scoring + topk mask (every step)
       Hook 3  on_eval()        — EMA-normalised reward → Dirichlet update
 
     Timing breakdown (all measured separately):
       t_data:   sample_batch + H2D transfer
       t_bandit: hook 1 (context encode + sampling) — should be <0.5ms
       t_fwd:    model forward (no labels — scorer uses logits directly)
-      t_score:  hook 2 (scoring + topk) — only at rescore steps
+      t_score:  hook 2 (scoring + topk) — every step, on the current batch
       t_bwd:    backward + gradient clip + optimizer step
 
     Expected overhead for SIEVE vs CLM:
       t_bandit: ~0.1ms/step (pure Python, O(K) numpy)
-      t_score:  ~5ms per rescore step, amortised over Δ=50 steps ≈ 0.1ms/step
-      Total scorer overhead: ~1% of t_fwd+t_bwd — matches paper claim.
+      t_score:  one scoring pass per step. The mask is never reused across
+                steps: each step samples a new random batch.
     """
     try:
         from tqdm import tqdm
@@ -239,79 +239,53 @@ def train(
         T["data"] += perf_counter() - t0
         N["data"] += 1
 
-        # ── Forward — labels=None so we control the loss ───────────────
+        # ── Forward ───────────────────────────────────────────────────
         optim.zero_grad(set_to_none=True)
         t0 = perf_counter()
-        is_rescore = (sieve is not None and sieve.mask_cache.needs_rescore(step))
 
-        if use_fused_loss:
-            # Use model's internal loss (patched by Liger) with masked labels.
-            if sieve is not None and is_rescore:
-                # Forward once to get logits for scoring.
-                with dev_cfg.autocast:
-                    out = model(input_ids=input_ids, labels=None,
-                                output_hidden_states=False, use_cache=False, return_dict=True)
-                # Get logits from output for scoring at rescore steps.
-                logits = out.logits.float()
-                T["fwd"] += perf_counter() - t0
-                N["fwd"] += 1
-
-                # ── Hook 2: score and update mask
-                t1 = perf_counter()
-                mask = sieve.score_and_mask(logits, input_ids, ref_losses)
-                t_score_step = perf_counter() - t1
-                T["score"] += t_score_step
-                N["score"] += 1
-                T["score_rescore"] += t_score_step
-                N["score_rescore"] += 1
-
-                # Second forward to compute fused loss with masked labels.
-                labels = _build_masked_labels(input_ids, mask)
-                t2 = perf_counter()
-                with dev_cfg.autocast:
-                    out2 = model(input_ids=input_ids, labels=labels,
-                                 output_hidden_states=False, use_cache=False, return_dict=True)
-                T["fwd"] += perf_counter() - t2
-                N["fwd"] += 1
-                loss = out2.loss
-            else:
-                # Not a rescore step or no sieve: reuse cached mask (or None)
-                mask = sieve.mask_cache.mask if sieve is not None else None
-                labels = _build_masked_labels(input_ids, mask)
-                with dev_cfg.autocast:
-                    out = model(input_ids=input_ids, labels=labels,
-                                output_hidden_states=False, use_cache=False, return_dict=True)
-                logits = None
-                T["fwd"] += perf_counter() - t0
-                N["fwd"] += 1
-                loss = out.loss
+        if use_fused_loss and sieve is None:
+            # Full CLM on CUDA: model's internal loss (patched by Liger),
+            # logits are never materialised.
+            labels = _build_masked_labels(input_ids, None)
+            with dev_cfg.autocast:
+                out = model(input_ids=input_ids, labels=labels,
+                            output_hidden_states=False, use_cache=False, return_dict=True)
+            T["fwd"] += perf_counter() - t0
+            N["fwd"] += 1
+            loss = out.loss
         else:
-            # Standard path: compute logits, then selective loss.
+            # One forward with labels=None: the same logits are used to
+            # score the current batch and to compute the loss.
             with dev_cfg.autocast:
                 out = model(input_ids=input_ids, labels=None, use_cache=False)
             logits = out.logits
             T["fwd"] += perf_counter() - t0
             N["fwd"] += 1
 
-            # ── Hook 2: score tokens, get/reuse mask ────────────────
-            t1 = perf_counter()
+            # ── Hook 2: score the current batch and build its mask ──
+            # Done at every step: batches are sampled at random offsets,
+            # so a mask computed on another batch selects unrelated tokens.
+            mask = None
             if sieve is not None:
-                if is_rescore:
-                    with torch.no_grad():
-                        mask = sieve.score_and_mask(logits.detach(), input_ids, ref_losses)
-                else:
-                    mask = sieve.mask_cache.mask
-            else:
-                mask = None
-            t_score_step = perf_counter() - t1
-            if is_rescore:
-                T["score"] += t_score_step
+                t1 = perf_counter()
+                with torch.no_grad():
+                    mask = sieve.score_and_mask(logits.detach(), input_ids, ref_losses)
+                T["score"] += perf_counter() - t1
                 N["score"] += 1
-                T["score_rescore"] += t_score_step
-                N["score_rescore"] += 1
 
-            # ── Loss: gradient-invariant selective CE ───────────────
-            loss = selective_loss(logits, input_ids, mask)
+            if use_fused_loss:
+                # ── Loss: same normalisation as the model's internal loss
+                # on CUDA (mean over the selected tokens).
+                labels = _build_masked_labels(input_ids, mask)
+                V = logits.size(-1)
+                loss = F.cross_entropy(
+                    logits[:, :-1].float().reshape(-1, V),
+                    labels[:, 1:].reshape(-1),
+                    ignore_index=-100,
+                )
+            else:
+                # ── Loss: gradient-invariant selective CE ───────────
+                loss = selective_loss(logits, input_ids, mask)
 
         # ── Backward + optimizer ──────────────────────────────────────
         t0 = perf_counter()
@@ -460,9 +434,8 @@ def _print_timing_summary(T: dict, N: dict, max_steps: int) -> dict:
       data:    ~1-2 ms/step   (memmap is fast)
       bandit:  ~0.1 ms/step   (numpy dirichlet sample)
       fwd:     ~80-120 ms/step
-      score:   ~0.5-1.5 ms/step amortised (5ms per rescore / Δ=50)
+      score:   scoring + top-k on the current batch, at every step
       bwd:     ~100-150 ms/step
-      score%:  ~0.3-0.8% of total  ← paper claims ~1%, this is even better
     """
     components = ["data", "bandit", "fwd", "score", "bwd"]
     total      = sum(T.get(k, 0.0) for k in components)
@@ -483,19 +456,13 @@ def _print_timing_summary(T: dict, N: dict, max_steps: int) -> dict:
     print(f"  {'─'*10} {'─'*9}  {'─'*8}  {'─'*6}")
     print(f"  {'TOTAL':<10} {1000.0*total/max_steps:>9.2f}  {'100.0%':>8}")
 
-    # Rescore-step decomposition — the headline number for the paper
-    if N.get("score_rescore", 0) > 0:
-        ms_per_rescore   = 1000.0 * T["score_rescore"] / N["score_rescore"]
-        amortised_ms     = 1000.0 * T["score_rescore"] / max_steps
-        amortised_pct    = 100.0  * T["score_rescore"] / total
-        rescore_fraction = 100.0  * N["score_rescore"] / max_steps
-        print(f"\n  Rescore steps:          {N['score_rescore']}/{max_steps}"
-              f" ({rescore_fraction:.1f}% of steps)")
-        print(f"  Cost per rescore:       {ms_per_rescore:.2f} ms")
-        print(f"  Amortised scorer:       {amortised_ms:.3f} ms/step "
-              f"({amortised_pct:.2f}% of total)")
-        status = "✓ within paper claim" if amortised_pct < 2.0 else "✗ too high"
-        print(f"  Paper claims ~1%:       {status}")
+    # Scoring check — selection baselines must score 100% of steps
+    if N.get("score", 0) > 0:
+        ms_per_score   = 1000.0 * T["score"] / N["score"]
+        score_fraction = 100.0  * N["score"] / max_steps
+        print(f"\n  Scored steps:           {N['score']}/{max_steps}"
+              f" ({score_fraction:.1f}% of steps)")
+        print(f"  Cost per scored step:   {ms_per_score:.2f} ms")
 
     print("─" * 52)
     return result

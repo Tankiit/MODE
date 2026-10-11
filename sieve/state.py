@@ -49,25 +49,30 @@ class SieveState:
             sigma_max=cfg.sigma_max,
             sigma_warmup=cfg.sigma_warmup,
         )
-        self.mask_cache = MaskCache(cfg.selection_ratio, cfg.rescore_interval)
+        self.mask_cache = MaskCache(cfg.selection_ratio)
 
         # EMA state for reward normalisation
         self._ema:       float = 0.0
         self._prev_loss: Optional[float] = None
 
-        # Current sampled weights (updated at each rescore)
+        # Current sampled weights (re-sampled every rescore_interval steps)
         self.weights = torch.ones(len(self.scorer_names)) / len(self.scorer_names)
+        self._last_sample_step: Optional[int] = None
 
     # ── Hook 1 ────────────────────────────────────────────────────────
     def step_begin(self, step: int, max_steps: int,
                    prev_loss: float, prev_grad: float):
-        """Update step counter. Sample bandit weights if rescore due."""
+        """Update step counter. Re-sample bandit weights every rescore_interval steps."""
         self.step = step
-        if self.mask_cache.needs_rescore(step):
+        # The weights are held fixed for rescore_interval steps; the mask
+        # itself is recomputed at every step in score_and_mask().
+        if (self._last_sample_step is None
+                or step - self._last_sample_step >= self.cfg.rescore_interval):
             bin_idx      = self.bandit.encode_context(
                 step, max_steps, prev_loss, prev_grad
             )
             self.weights = self.bandit.sample(bin_idx)  # [K] on CPU
+            self._last_sample_step = step
 
     # ── Hook 2 (inside compute_loss) ─────────────────────────────────
     def score_and_mask(
@@ -77,10 +82,7 @@ class SieveState:
         ref_losses: Optional[torch.Tensor] = None,
         attn_mask:  Optional[torch.Tensor] = None,
     ) -> torch.Tensor:                          # [B, T] bool
-        """Score tokens and update mask cache if rescore interval reached."""
-        if not self.mask_cache.needs_rescore(self.step):
-            return self.mask_cache.mask
-
+        """Score the tokens of the current batch and return their top-α mask."""
         w = self.weights.to(self.device)
         scores = self.scorers.score_all(
             logits.detach().float(),   # detach: no grad through scoring

@@ -12,7 +12,7 @@ weights over training.
 
 - `sieve/scorers.py`: token-level scoring functions
 - `sieve/bandit.py`: contextual Dirichlet Thompson sampling
-- `sieve/mask.py`: per-sequence top-k token mask cache
+- `sieve/mask.py`: per-sequence top-k token mask, recomputed on the current batch at every step
 - `sieve/loss.py`: gradient-invariant selective cross-entropy
 - `sieve/state.py`: SIEVE state object tying scorers, bandit, and masks together
 - `sieve/loop.py`: framework-free training and evaluation loop

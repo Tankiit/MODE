@@ -243,7 +243,6 @@ def _build_selector(baseline: str, cfg: SieveConfig, device):
             freq_table = torch.load(cfg.freq_table_path, map_location="cpu")
         rho1 = Rho1Baseline(
             selection_ratio  = cfg.selection_ratio,
-            rescore_interval = cfg.rescore_interval,
         )
         return rho1   # direct — no adapter needed
 
@@ -324,7 +323,7 @@ def _print_summary(history: dict, baseline: str):
             if score_pct < 2.0:
                 print(f"✓ Within paper's ~1% claim")
             else:
-                print(f"✗ Overhead too high — check rescore_interval")
+                print(f"✗ Scorer overhead above 2% (scoring now runs at every step)")
 
 
 if __name__ == "__main__":

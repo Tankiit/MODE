@@ -1,0 +1,6 @@
+# Full causal LM: no selection
+selection:
+  method: clm
+  alpha: null
+  scorers: []
+  mixer: fixed

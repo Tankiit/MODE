@@ -1,0 +1,11 @@
+# Quick end-to-end check on a small corpus (CPU friendly)
+include: [../base.yaml, ../models/tiny.yaml, ../data/wikitext2.yaml, ../methods/mix4.yaml]
+name: smoke
+training:
+  steps: 300
+  warmup_steps: 50
+eval:
+  interval: 100
+  batches: 10
+output:
+  log_interval: 50

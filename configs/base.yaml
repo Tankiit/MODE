@@ -1,0 +1,47 @@
+# Paper defaults (§3, App. B). Every key is listed; the dataclass defaults in
+# sieve/config.py are identical. Combine with one file from models/, data/
+# and methods/ (or include them from an experiment file).
+seed: 42
+
+model:
+  name: gpt2                 # Hugging Face id, or "tiny" for tests
+
+data:
+  name: wikitext103
+  dir: ./data/wikitext103
+  seq_len: 1024
+  batch_size: 8
+  fraction: 1.0
+
+selection:
+  method: clm
+  alpha: null                # null = full CLM (no selection)
+  scorers: []
+  mixer: fixed
+  fixed_weights: null
+  rescore_interval: 100      # T_rescore
+  reference_model: gpt2      # frozen reference for excess_loss (GPT-2 Small)
+  vn_eps: 1.0e-3
+  vn_sigma_warmup: 2
+  noise_seed: null           # null = run seed
+
+training:
+  steps: 25000
+  lr: 3.0e-4
+  beta1: 0.9
+  beta2: 0.95
+  weight_decay: 0.1
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+  grad_clip: 1.0
+  autocast: bfloat16
+
+eval:
+  interval: 1000             # T_val
+  batches: 50
+  batch_size: 8
+
+output:
+  root: runs
+  log_interval: 100
+  save_final: false

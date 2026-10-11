@@ -1,0 +1,6 @@
+# Mix-4: Dirichlet mixture over the four scorers
+selection:
+  method: mix4
+  alpha: 0.7
+  scorers: [excess_loss, entropy, logit_margin, frequency]
+  mixer: dirichlet

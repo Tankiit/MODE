@@ -1,0 +1,5 @@
+selection:
+  method: sd_only
+  alpha: 0.7
+  scorers: [frequency]
+  mixer: fixed

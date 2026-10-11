@@ -1,0 +1,5 @@
+selection:
+  method: su_only
+  alpha: 0.7
+  scorers: [entropy]
+  mixer: fixed

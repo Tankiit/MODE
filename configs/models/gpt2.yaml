@@ -1,0 +1,5 @@
+# GPT-2 Small (124M), continued training from the public checkpoint
+model:
+  name: gpt2
+data:
+  batch_size: 8

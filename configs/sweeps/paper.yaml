@@ -1,0 +1,49 @@
+# Full rerun grid of the paper: 183 runs (RERUN_PLAN.md §5).
+# Expand with:  python scripts/expand_sweep.py configs/sweeps/paper.yaml --out sweeps/paper
+#
+# Each group is the Cartesian product of:
+#   include: one file per key, from configs/{models,data,methods}/<value>.yaml
+#   grid:    dotted config keys and their values
+#   zip:     (optional) list of override sets combined with the grid
+# `set` (optional) gives constant overrides for the group, and `rules` set
+# extra keys on the matching runs.
+base: [../base.yaml]
+
+groups:
+  # GPT-2 Small paired sweep (App. C): S_E-only vs Mix-4, 2 corpora, 4 budgets — 48 runs
+  - name: B
+    include: {model: [gpt2], data: [wikitext103, owm], method: [se_only, mix4]}
+    grid: {selection.alpha: [0.3, 0.5, 0.7, 0.9], seed: [42, 43, 44]}
+
+  # GPT-2 Small matched-token control (rebuttal remz), WikiText-103 — 24 + 3 runs
+  # steps = 71.68M retained tokens / (8 sequences x 1024 tokens x alpha)
+  - name: C
+    include: {model: [gpt2], data: [wikitext103], method: [se_only, mix4]}
+    zip:
+      - {selection.alpha: 0.3, training.steps: 29167}
+      - {selection.alpha: 0.5, training.steps: 17500}
+      - {selection.alpha: 0.7, training.steps: 12500}
+      - {selection.alpha: 0.9, training.steps: 9722}
+    grid: {seed: [42, 43, 44]}
+  - name: C
+    include: {model: [gpt2], data: [wikitext103], method: [clm]}
+    grid: {training.steps: [8750], seed: [42, 43, 44]}
+
+  # GPT-2 Large, Table 1: 9 variants at alpha = 0.7, 2 corpora — 54 runs
+  - name: A1
+    include:
+      model: [gpt2-large]
+      data: [wikitext103, owm]
+      method: [se_only, su_only, sl_only, sd_only, mix4, mix3, vn_mix, mix4_bigram, mix4_noise]
+    grid: {selection.alpha: [0.7], seed: [42, 43, 44]}
+    rules:
+      # final checkpoints for the Jaccard / correlation appendices
+      - when: {seed: 42, data: wikitext103, method: [se_only, su_only, sl_only, sd_only, mix4]}
+        set: {output.save_final: true}
+      - when: {seed: 42, data: owm, method: [mix4]}
+        set: {output.save_final: true}
+
+  # GPT-2 Large, Table 2: alpha sweep (alpha = 0.7 is in A1) — 54 runs
+  - name: A2
+    include: {model: [gpt2-large], data: [wikitext103, owm], method: [se_only, mix4, vn_mix]}
+    grid: {selection.alpha: [0.3, 0.5, 0.9], seed: [42, 43, 44]}

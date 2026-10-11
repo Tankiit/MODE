@@ -1,0 +1,6 @@
+# Fixed uniform weights over the four scorers (no learning)
+selection:
+  method: uniform4
+  alpha: 0.7
+  scorers: [excess_loss, entropy, logit_margin, frequency]
+  mixer: fixed

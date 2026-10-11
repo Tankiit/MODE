@@ -1,0 +1,6 @@
+# VN-Mix: variance-normalized Dirichlet update (paper Eq. vnts)
+selection:
+  method: vn_mix
+  alpha: 0.7
+  scorers: [excess_loss, entropy, logit_margin, frequency]
+  mixer: vn_dirichlet

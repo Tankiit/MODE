@@ -9,10 +9,11 @@ venv/
 data/
 outputs/
 runs/
+runs_*/
 logs/
-results/
-figs/
-commands_*.txt
+results*/
+figs*/
+/sweeps/
 *.log
 
 *.bin

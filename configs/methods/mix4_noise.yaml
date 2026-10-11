@@ -1,0 +1,6 @@
+# Control: Mix-4 with the S_D slot replaced by Gaussian noise
+selection:
+  method: mix4_noise
+  alpha: 0.7
+  scorers: [excess_loss, entropy, logit_margin, noise]
+  mixer: dirichlet

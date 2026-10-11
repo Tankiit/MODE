@@ -1,0 +1,8 @@
+# Small randomly initialised GPT-2, for tests only
+model:
+  name: tiny
+data:
+  seq_len: 128
+  batch_size: 2
+selection:
+  reference_model: gpt2

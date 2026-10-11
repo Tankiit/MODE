@@ -1,0 +1,5 @@
+# GPT-2 Large (774M), continued training from the public checkpoint
+model:
+  name: gpt2-large
+data:
+  batch_size: 4

@@ -1,0 +1,5 @@
+selection:
+  method: sl_only
+  alpha: 0.7
+  scorers: [logit_margin]
+  mixer: fixed

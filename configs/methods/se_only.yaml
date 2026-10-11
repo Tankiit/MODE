@@ -1,0 +1,6 @@
+# Excess-loss-only baseline (frozen GPT-2 Small reference); not a Rho-1 reproduction
+selection:
+  method: se_only
+  alpha: 0.7
+  scorers: [excess_loss]
+  mixer: fixed

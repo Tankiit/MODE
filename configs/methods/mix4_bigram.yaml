@@ -1,0 +1,6 @@
+# Control: Mix-4 with the S_D slot replaced by bigram rarity
+selection:
+  method: mix4_bigram
+  alpha: 0.7
+  scorers: [excess_loss, entropy, logit_margin, bigram]
+  mixer: dirichlet

@@ -1,0 +1,6 @@
+# Mix-3: Mix-4 without excess loss
+selection:
+  method: mix3
+  alpha: 0.7
+  scorers: [entropy, logit_margin, frequency]
+  mixer: dirichlet

@@ -1,0 +1,36 @@
+# CPU-friendly end-to-end check of the whole pipeline (training, run
+# directories, every analysis) on small corpora: tiny model, 300 steps.
+#   python scripts/prepare_data.py --dataset wikitext2 --out ./data/wikitext2 --train_tokens 300000 --bigram
+#   python scripts/prepare_data.py --dataset openwebmath --out ./data/openwebmath_1b \
+#       --train_tokens 120000 --val_tokens 20000 --bigram
+#   python scripts/expand_sweep.py configs/sweeps/smoke.yaml --out sweeps/smoke
+#   while read c; do python main.py --config "$c" --skip-if-done; done < sweeps/smoke/list.txt
+#   python -m sieve.analysis.aggregate --runs runs_smoke --out results_smoke
+#   python -m sieve.analysis.bandit_plots --runs runs_smoke --out figs_smoke --model tiny --data wikitext2 --steps 300
+#   python -m sieve.analysis.selection_overlap --runs runs_smoke --out results_smoke --model tiny \
+#       --jaccard_data wikitext2 --corr_data wikitext2 owm --steps 300 --batch 2
+base: [../base.yaml]
+
+groups:
+  - name: S
+    include:
+      model: [tiny]
+      data: [wikitext2]
+      method: [se_only, su_only, sl_only, sd_only, mix4, mix4_bigram, mix4_noise]
+    set: &smoke
+      training.steps: 300
+      training.warmup_steps: 50
+      eval.interval: 100
+      eval.batches: 10
+      output.log_interval: 50
+      output.root: runs_smoke
+    grid: {seed: [42, 43]}
+    rules:
+      - when: {seed: 42, method: [se_only, su_only, sl_only, sd_only, mix4]}
+        set: {output.save_final: true}
+  - name: S
+    include: {model: [tiny], data: [owm], method: [mix4]}
+    set:
+      <<: *smoke
+      output.save_final: true
+    grid: {seed: [42]}

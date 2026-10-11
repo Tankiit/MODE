@@ -1,24 +1,3 @@
-"""
-SIEVE: Selective token-level training for language models.
+"""Token-level data selection with scorer mixtures (see README.md and RERUN_PLAN.md)."""
 
-A complete implementation of SIEVE token selection with contextual bandit
-optimization over multiple scoring strategies.
-"""
-
-from .config import SieveConfig
-from .state import SieveState
-from .loop import train, evaluate
-from .patience import PatienceMonitor
-from .rho1 import Rho1Baseline
-from .device import get_cfg
-
-__version__ = "0.1.0"
-__all__ = [
-    "SieveConfig",
-    "SieveState",
-    "train",
-    "evaluate",
-    "PatienceMonitor",
-    "Rho1Baseline",
-    "get_cfg",
-]
+__version__ = "0.2.0"

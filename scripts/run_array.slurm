@@ -5,14 +5,16 @@
 #SBATCH --output=logs/%x_%A_%a.out
 #SBATCH --error=logs/%x_%A_%a.err
 #
-# Run line $SLURM_ARRAY_TASK_ID of a command file produced by
-# scripts/make_commands.sh. Runs whose history.json already exists are
-# skipped, so the same array can be resubmitted after failures.
+# Run config number $SLURM_ARRAY_TASK_ID of a list written by
+# scripts/expand_sweep.py. main.py --skip-if-done exits immediately when a
+# completed run with the same configuration already exists, so the same
+# array can be resubmitted after failures. Each run writes a new directory
+# under runs/ (never overwritten).
 #
-# Usage (from the repo root, after `mkdir -p logs runs`):
+# Usage (from the repo root, after `mkdir -p logs`):
 #   sbatch -A <account> --time=<hh:mm:ss> \
-#     --array=1-$(wc -l < commands_small.txt)%20 \
-#     --export=ALL,CMDS=commands_small.txt scripts/run_array.slurm
+#     --array=1-$(wc -l < sweeps/paper/list_gpt2.txt)%20 \
+#     --export=ALL,LIST=sweeps/paper/list_gpt2.txt scripts/run_array.slurm
 set -euo pipefail
 
 # ── Cluster-specific environment (adapt) ─────────────────────────────
@@ -21,12 +23,6 @@ source .venv/bin/activate
 export HF_HUB_OFFLINE=1          # compute nodes are often offline
 export HF_DATASETS_OFFLINE=1
 
-CMD=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$CMDS")
-OUTDIR=$(echo "$CMD" | sed -E 's/.*--out_dir ([^ ]+).*/\1/')
-if [[ -f "$OUTDIR/history.json" ]]; then
-  echo "[task ${SLURM_ARRAY_TASK_ID}] already done: $OUTDIR"
-  exit 0
-fi
-mkdir -p "$OUTDIR"
-echo "[task ${SLURM_ARRAY_TASK_ID}] $CMD"
-eval "$CMD" 2>&1 | tee "$OUTDIR/train.log"
+CONFIG=$(sed -n "${SLURM_ARRAY_TASK_ID}p" "$LIST")
+echo "[task ${SLURM_ARRAY_TASK_ID}] $CONFIG"
+python main.py --config "$CONFIG" --skip-if-done

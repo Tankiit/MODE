@@ -6,13 +6,13 @@ __pycache__/
 .venv/
 venv/
 
-data/
-outputs/
-runs/
-runs_*/
-logs/
-results*/
-figs*/
+/data/
+/outputs/
+/runs/
+/runs_*/
+/logs/
+/results*/
+/figs*/
 /sweeps/
 *.log
 

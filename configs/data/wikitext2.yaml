@@ -1,0 +1,4 @@
+# Small corpus for tests
+data:
+  name: wikitext2
+  dir: ./data/wikitext2

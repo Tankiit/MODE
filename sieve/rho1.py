@@ -9,7 +9,7 @@ Comparison fairness guarantees:
   - Same codebase, same training loop, same optimizer
   - Same eval harness (lm-evaluation-harness)
   - Same MaskCache (per-sequence topk, BOS-position skip)
-  - Same selective_loss (gradient-invariant normalisation)
+  - Same selective_loss (fixed full-token denominator)
   - Only difference: weights = [1, 0, 0, 0] (S_E only, no bandit)
 
 Reference model strategy:
@@ -73,11 +73,8 @@ class Rho1Baseline:
     ) -> torch.Tensor:
         """
         Select top-α tokens by S_E score.
-        Reuses the mask for rescore_interval steps (same as SIEVE).
+        Computes a fresh mask for every incoming batch.
         """
-        if not self.mask_cache.needs_rescore(self._step):
-            return self.mask_cache.mask
-
         device = logits.device
         w      = self._W.to(device)
 

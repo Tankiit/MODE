@@ -108,8 +108,16 @@ def _parse_cli_flags(train_cli: str) -> dict[str, str]:
 
 
 def _derive_run_name(train_cli: str) -> str:
-    """Match train_sieve default run_name: {baseline}_{dataset}_{model}_a{..}_s{seed}."""
+    """Match train_sieve default run_name: {baseline}_{dataset}_{model}_a{..}_s{seed}.
+
+    If --run_name is explicitly passed (e.g., by the sweep orchestrator),
+    use it directly. Otherwise, derive a name from the other CLI flags.
+    """
     d = _parse_cli_flags(train_cli)
+    # Orchestrator-passed run_name wins — respects explicit naming.
+    if "run_name" in d:
+        return d["run_name"]
+    # Legacy fallback for single-run commands.
     baseline = d.get("baseline", "sieve")
     dataset = d.get("dataset", "wikitext2")
     model = d.get("model", "gpt2")
@@ -132,6 +140,15 @@ def _parse_train_log(log_path: Path) -> dict:
                 pass
         if "[ckpt] final at step" in line:
             m["checkpoint_summary"] = line.strip()
+        if line.startswith("Final variance analysis:"):
+            for part in line.split(":", 1)[1].strip().split():
+                if "=" not in part:
+                    continue
+                key, value = part.split("=", 1)
+                try:
+                    m[f"final_variance_{key}"] = float(value)
+                except ValueError:
+                    pass
     return m
 
 

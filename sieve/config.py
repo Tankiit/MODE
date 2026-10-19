@@ -1,5 +1,5 @@
 """Single source of truth for all hyperparameters."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 
@@ -7,14 +7,20 @@ from typing import Optional
 class SieveConfig:
     # ── Selection ─────────────────────────────────────────────────────
     selection_ratio:    float = 0.70   # α — fraction of tokens kept
-    rescore_interval:   int   = 50     # Δ — steps between mask refreshes
+    rescore_interval:   int   = 50     # Legacy option; masks refresh on every batch
 
     # ── Bandit ────────────────────────────────────────────────────────
     n_strategies:       int   = 4      # K — S_E, S_U, S_L, S_D
+    scorer_names:       list[str] = field(default_factory=lambda: ["S_E", "S_U", "S_L", "S_D"])
     n_context_bits:     int   = 16     # binary state encoding width
     n_bins:             int   = 16     # context bins (2^4 phase bits)
     discount:           float = 0.95   # γ — posterior discount per update
     ema_alpha:          float = 0.99   # EMA for reward normalisation
+    variance_normalized_bandit: bool = False
+    var_history_window: int   = 10
+    sigma_min:          float = 0.01
+    sigma_max:          float = 10.0
+    sigma_warmup:       int   = 3
 
     # ── Training ──────────────────────────────────────────────────────
     max_steps:          int   = 10_000
@@ -32,6 +38,8 @@ class SieveConfig:
     data_fraction:      float = 1.0            # train only: fraction of memmap tokens to use
     freq_table_path:    Optional[str] = None   # set by prepare.py
     ref_losses_path:    Optional[str] = None   # S_E offline cache
+    sd_scorer:          str   = "inv_freq"     # inv_freq | bigram_freq | pos_inv_freq | random_noise
+    bigram_table_path:  Optional[str] = None   # cached exact bigram log-frequency table
 
     # ── Model ─────────────────────────────────────────────────────────
     model_name:         str   = "gpt2"

@@ -1,11 +1,7 @@
-"""
-Gradient-invariant selective cross-entropy.
+"""Selective CE with a fixed full-token denominator.
 
-Key property: loss normalised by B*(T-1) regardless of how many tokens
-are selected. This keeps gradient magnitude identical to full CLM
-training at any selection ratio α — the most common bug in token-masking
-papers is to normalise by n_selected instead, which implicitly scales
-the learning rate by 1/α.
+This does not preserve the full-CLM gradient magnitude: removing terms
+changes the gradient. It avoids implicit selected-count renormalization.
 """
 import torch
 import torch.nn.functional as F
@@ -26,12 +22,7 @@ def selective_loss(
 
     if mask is not None:
         m = mask[:, 1:]  # align with shift_labels [B, T-1]
-        # If nothing selected (should not happen after MaskCache fix), fall back
-        # to full CLM so cross_entropy is not all-ignore → NaN backward.
-        if not m.any():
-            mask = None
-        else:
-            shift_labels = shift_labels.masked_fill(~m, ignore_index)
+        shift_labels = shift_labels.masked_fill(~m, ignore_index)
 
     # reduction="sum" so we control the denominator precisely
     loss = F.cross_entropy(
@@ -41,5 +32,5 @@ def selective_loss(
         reduction="sum",
     )
 
-    # Normalise by FULL sequence length — gradient scale invariant to α
+    # Full-token denominator; gradient magnitude still depends on selection.
     return loss / (B * (T - 1))

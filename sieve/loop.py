@@ -1,16 +1,4 @@
-"""
-sieve/loop.py
-
-Framework-free SIEVE training loop.
-Works on GPT-2 (any size), TinyLlama, any HF CausalLM.
-Three hooks are explicit and labelled.
-
-PATCH: Fine-grained per-component timing added.
-  - tqdm progress bar with live loss/ppl/overhead postfix
-  - Separate timers: t_data, t_bandit, t_fwd, t_score, t_bwd
-  - End-of-run summary table for paper's ~1% overhead claim
-  - Profiling adds ~0.05ms/step (negligible) via perf_counter
-"""
+"""Local training with fresh masks and evaluation-block reward attribution."""
 from __future__ import annotations
 import json as _json
 import math, time
@@ -75,6 +63,28 @@ def _collect_bandit_state(
     return {
         "alpha": getattr(sieve.bandit, "alpha", None),
         "history": history.get("weights", []),
+    }
+
+
+def _bandit_variance_snapshot(sieve: Optional[SieveState]) -> Optional[dict]:
+    """Current-bin variance diagnostics, kept JSON-serialisable for logs."""
+    if not _has_bandit(sieve):
+        return None
+    b = sieve.bandit._current_bin
+    ew = sieve.bandit.expected_weights(b)
+    var = sieve.bandit.posterior_variance(b)
+    names = list(getattr(sieve, "scorer_names", ["S_E", "S_U", "S_L", "S_D"]))
+    var_by_name = {name: float(var[i]) for i, name in enumerate(names)}
+    order = sorted((float(x) for x in ew), reverse=True)
+    return {
+        "context_bin": int(b),
+        "variance_sum": float(var.sum()),
+        "variance_S_E": var_by_name.get("S_E", 0.0),
+        "variance_S_U": var_by_name.get("S_U", 0.0),
+        "variance_S_L": var_by_name.get("S_L", 0.0),
+        "variance_S_D": var_by_name.get("S_D", 0.0),
+        "weight_variance": float(ew.var()),
+        "weight_gap": float(order[0] - order[1]) if len(order) > 1 else 0.0,
     }
 
 
@@ -207,25 +217,10 @@ def train(
     dev_cfg:  DeviceCfg,
     sieve:    Optional[SieveState] = None,
 ) -> dict:
-    """
-    Main SIEVE training loop with fine-grained profiling.
+    """Fresh per-batch scoring and fixed full-token CE on every device.
 
-    Three hooks (labelled):
-      Hook 1  step_begin()     — bandit context encode + Dirichlet sample
-      Hook 2  score_and_mask() — token scoring + topk mask (cached Δ steps)
-      Hook 3  on_eval()        — EMA-normalised reward → Dirichlet update
-
-    Timing breakdown (all measured separately):
-      t_data:   sample_batch + H2D transfer
-      t_bandit: hook 1 (context encode + sampling) — should be <0.5ms
-      t_fwd:    model forward (no labels — scorer uses logits directly)
-      t_score:  hook 2 (scoring + topk) — only at rescore steps
-      t_bwd:    backward + gradient clip + optimizer step
-
-    Expected overhead for SIEVE vs CLM:
-      t_bandit: ~0.1ms/step (pure Python, O(K) numpy)
-      t_score:  ~5ms per rescore step, amortised over Δ=50 steps ≈ 0.1ms/step
-      Total scorer overhead: ~1% of t_fwd+t_bwd — matches paper claim.
+    Weights remain fixed between evaluations; improvement credits that block.
+    Host timers do not isolate asynchronous CUDA work.
     """
     try:
         from tqdm import tqdm
@@ -238,7 +233,7 @@ def train(
         model.parameters(), lr=cfg.lr, weight_decay=0.1
     )
 
-    history      = {"loss": [], "val_ppl": [], "weights": []}
+    history      = {"loss": [], "val_ppl": [], "weights": [], "variance": []}
     prev_loss    = 1.0
     prev_grad    = 0.0
     last_val_ppl = float("nan")
@@ -284,21 +279,13 @@ def train(
     t_wall = time.time()
     pf: dict = {}
 
-    # Enable fused loss via model.loss on CUDA if Liger is active.
-    # We detect by backend; model was patched in train_sieve.py.
-    use_fused_loss = (dev_cfg.backend == "cuda")
-
-    def _build_masked_labels(input_ids: torch.Tensor,
-                             mask: Optional[torch.Tensor],
-                             ignore_index: int = -100) -> torch.Tensor:
-        B, T = input_ids.shape
-        labels = input_ids.clone()
-        # First token never contributes (standard CLM shift)
-        labels[:, 0] = ignore_index
-        if mask is not None:
-            m = mask[:, 1:]
-            labels[:, 1:] = torch.where(m, labels[:, 1:], torch.full_like(labels[:, 1:], ignore_index))
-        return labels
+    # Establish the baseline before sampling the first interval's weights.
+    initial_ppl = evaluate(model, val_ds, device, max_batches=50)
+    history["val_ppl"].append(initial_ppl)
+    last_val_ppl = initial_ppl
+    if sieve is not None:
+        sieve.on_eval(math.log(initial_ppl))
+    last_eval_step = 0
 
     stopped_early = False
     n_loop_steps = 0
@@ -306,7 +293,7 @@ def train(
     for step in pbar:
         n_loop_steps = step + 1
 
-        # ── Hook 1: sample bandit weights if rescore due ──────────────
+        # ── Hook 1: sample weights at an evaluation boundary ──────────────
         t0 = perf_counter()
         if sieve is not None:
             sieve.step_begin(step, cfg.max_steps, prev_loss, prev_grad)
@@ -324,76 +311,20 @@ def train(
         # ── Forward — labels=None so we control the loss ───────────────
         optim.zero_grad(set_to_none=True)
         t0 = perf_counter()
-        is_rescore = (sieve is not None and sieve.mask_cache.needs_rescore(step))
-
-        if use_fused_loss:
-            # Use model's internal loss (patched by Liger) with masked labels.
-            if sieve is not None and is_rescore:
-                # Forward once to get logits for scoring.
-                with dev_cfg.autocast:
-                    out = model(input_ids=input_ids, labels=None,
-                                output_hidden_states=False, use_cache=False, return_dict=True)
-                # Get logits from output for scoring at rescore steps.
-                logits = out.logits.float()
-                T["fwd"] += perf_counter() - t0
-                N["fwd"] += 1
-
-                # ── Hook 2: score and update mask
-                t1 = perf_counter()
-                mask = sieve.score_and_mask(logits, input_ids, ref_losses)
-                t_score_step = perf_counter() - t1
-                T["score"] += t_score_step
-                N["score"] += 1
-                T["score_rescore"] += t_score_step
-                N["score_rescore"] += 1
-
-                # Second forward to compute fused loss with masked labels.
-                labels = _build_masked_labels(input_ids, mask)
-                t2 = perf_counter()
-                with dev_cfg.autocast:
-                    out2 = model(input_ids=input_ids, labels=labels,
-                                 output_hidden_states=False, use_cache=False, return_dict=True)
-                T["fwd"] += perf_counter() - t2
-                N["fwd"] += 1
-                loss = out2.loss
-            else:
-                # Not a rescore step or no sieve: reuse cached mask (or None)
-                mask = sieve.mask_cache.mask if sieve is not None else None
-                labels = _build_masked_labels(input_ids, mask)
-                with dev_cfg.autocast:
-                    out = model(input_ids=input_ids, labels=labels,
-                                output_hidden_states=False, use_cache=False, return_dict=True)
-                logits = None
-                T["fwd"] += perf_counter() - t0
-                N["fwd"] += 1
-                loss = out.loss
-        else:
-            # Standard path: compute logits, then selective loss.
-            with dev_cfg.autocast:
-                out = model(input_ids=input_ids, labels=None, use_cache=False)
-            logits = out.logits
-            T["fwd"] += perf_counter() - t0
-            N["fwd"] += 1
-
-            # ── Hook 2: score tokens, get/reuse mask ────────────────
-            t1 = perf_counter()
-            if sieve is not None:
-                if is_rescore:
-                    with torch.no_grad():
-                        mask = sieve.score_and_mask(logits.detach(), input_ids, ref_losses)
-                else:
-                    mask = sieve.mask_cache.mask
-            else:
-                mask = None
-            t_score_step = perf_counter() - t1
-            if is_rescore:
-                T["score"] += t_score_step
-                N["score"] += 1
-                T["score_rescore"] += t_score_step
-                N["score_rescore"] += 1
-
-            # ── Loss: gradient-invariant selective CE ───────────────
-            loss = selective_loss(logits, input_ids, mask)
+        with dev_cfg.autocast:
+            out = model(input_ids=input_ids, labels=None, use_cache=False)
+        logits = out.logits
+        T["fwd"] += perf_counter() - t0
+        N["fwd"] += 1
+        t1 = perf_counter()
+        mask = sieve.score_and_mask(logits.detach(), input_ids, ref_losses) if sieve is not None else None
+        t_score_step = perf_counter() - t1
+        if sieve is not None:
+            T["score"] += t_score_step
+            N["score"] += 1
+            T["score_rescore"] += t_score_step
+            N["score_rescore"] += 1
+        loss = selective_loss(logits.float(), input_ids, mask)
 
         # ── Backward + optimizer ──────────────────────────────────────
         t0 = perf_counter()
@@ -430,6 +361,9 @@ def train(
                         sieve.bandit._current_bin
                     ).tolist()
                 )
+                variance = _bandit_variance_snapshot(sieve)
+                if variance is not None:
+                    history["variance"].append(variance)
 
         # ── tqdm postfix — live overhead monitoring ────────────────────
         if _use_tqdm and step % 50 == 0 and step > 0:
@@ -443,16 +377,19 @@ def train(
             }
             if _has_bandit(sieve):
                 ew = sieve.bandit.expected_weights(sieve.bandit._current_bin)
+                names = list(getattr(sieve, "scorer_names", ["S_E", "S_U", "S_L", "S_D"]))
                 # dominant strategy — the paper's key interpretability signal
-                pf["dom"] = ["S_E", "S_U", "S_L", "S_D"][int(ew.argmax())]
+                pf["dom"] = names[int(ew.argmax())]
             pbar.set_postfix(pf)
 
         # ── Evaluation + Hook 3 ───────────────────────────────────────
-        if step > 0 and step % cfg.eval_interval == 0:
+        if (step + 1) % cfg.eval_interval == 0:
+            completed = step + 1
             val_ppl = evaluate(model, val_ds, device, max_batches=50)
             last_val_ppl = val_ppl
+            last_eval_step = step + 1
             history["val_ppl"].append(val_ppl)
-            print(f"\n  step {step:5d}  val_ppl={val_ppl:.2f}"
+            print(f"\n  step {completed:5d}  val_ppl={val_ppl:.2f}"
                   + (f"  dom={pf.get('dom', '?')}" if _has_bandit(sieve) else ""))
 
             w_snap: Optional[torch.Tensor] = None
@@ -466,12 +403,12 @@ def train(
                     ent_snap = float(sieve.bandit.posterior_entropy(b))
 
             if patience is not None:
-                patience.update(step, val_ppl, w_snap, ent_snap)
+                patience.update(completed, val_ppl, w_snap, ent_snap)
 
             if sieve is not None:
                 sieve.on_eval(math.log(val_ppl))   # pass log-PPL as proxy loss
 
-            ev_log = {"step": step, "val/ppl": val_ppl}
+            ev_log = {"step": completed, "val/ppl": val_ppl}
             if patience is not None:
                 ev_log.update(patience.log_dict())
             log_fn(ev_log)
@@ -479,15 +416,15 @@ def train(
             if (
                 save_dir is not None
                 and save_interval > 0
-                and step % save_interval == 0
+                and completed % save_interval == 0
             ):
                 is_best = val_ppl < best_ppl
                 if is_best:
                     best_ppl = val_ppl
-                    best_step = step
+                    best_step = completed
                 _save_checkpoint(
                     model,
-                    step,
+                    completed,
                     save_dir,
                     val_ppl,
                     bandit_state=None,
@@ -500,24 +437,26 @@ def train(
                     _prune_checkpoints(save_dir, max_keep, prot)
 
             if patience is not None:
-                stop, reason = patience.should_stop(step)
+                stop, reason = patience.should_stop(completed)
                 if stop:
-                    print(f"\n[patience] early stop at step {step}: {reason}")
+                    print(f"\n[patience] early stop at step {completed}: {reason}")
                     history["early_stop"] = True
-                    history["early_stop_step"] = step
+                    history["early_stop_step"] = completed
                     history["early_stop_reason"] = reason
                     stopped_early = True
                     break
 
     # Final evaluation (skipped if we already evaluated at the stop step)
-    if stopped_early:
+    if stopped_early or last_eval_step == n_loop_steps:
         val_ppl = history["val_ppl"][-1]
-        print(f"  [final] val_ppl={val_ppl:.2f}  (patience early stop)")
-        log_fn({"step": step, "val/ppl": val_ppl})
-        final_ckpt_step = step
+        print(f"  [final] val_ppl={val_ppl:.2f}  (already evaluated)")
+        log_fn({"step": n_loop_steps, "val/ppl": val_ppl})
+        final_ckpt_step = n_loop_steps
     else:
         val_ppl = evaluate(model, val_ds, device, max_batches=50)
         history["val_ppl"].append(val_ppl)
+        if sieve is not None:
+            sieve.on_eval(math.log(val_ppl))
         print(f"  [final] val_ppl={val_ppl:.2f}")
         log_fn({"step": cfg.max_steps, "val/ppl": val_ppl})
         final_ckpt_step = cfg.max_steps
@@ -542,13 +481,39 @@ def train(
         )
 
     # ── Timing summary at end ─────────────────────────────────────────
+    variance = _bandit_variance_snapshot(sieve)
+    if variance is not None:
+        history["variance"].append(variance)
     _print_timing_summary(T, N, n_loop_steps)
+    _print_variance_summary(history)
     history["timing"] = dict(T)
     if save_dir is not None:
         history["best_step"] = best_step
         history["best_ppl"] = best_ppl
 
     return history
+
+
+def _print_variance_summary(history: dict) -> None:
+    """Emit end-of-run variance analysis into stdout/train.log."""
+    if not history.get("variance"):
+        return
+    v = history["variance"][-1]
+    print("\n── Variance analysis ────────────────────────────────")
+    print(
+        f"  context_bin={v['context_bin']}  "
+        f"posterior_var_sum={v['variance_sum']:.6f}  "
+        f"weight_var={v['weight_variance']:.6f}  "
+        f"weight_gap={v['weight_gap']:.6f}"
+    )
+    print(
+        "  posterior_var: "
+        f"S_E={v['variance_S_E']:.6f}  "
+        f"S_U={v['variance_S_U']:.6f}  "
+        f"S_L={v['variance_S_L']:.6f}  "
+        f"S_D={v['variance_S_D']:.6f}"
+    )
+    print("─" * 52)
 
 
 def _print_timing_summary(T: dict, N: dict, max_steps: int) -> dict:
@@ -620,10 +585,12 @@ def _make_logger(cfg: SieveConfig):
             ppl  = d.get("val/ppl", "")
             se   = d.get("sieve/w_S_E", "")
             su   = d.get("sieve/w_S_U", "")
+            var  = d.get("sieve/variance_sum", "")
             if loss:
                 print(f"step {step:5d}  loss={loss:.4f}  "
                       f"grad={d.get('grad', 0):.3f}"
-                      + (f"  S_E={se:.3f} S_U={su:.3f}" if se != "" else ""))
+                      + (f"  S_E={se:.3f} S_U={su:.3f}" if se != "" else "")
+                      + (f"  var={var:.6f}" if var != "" else ""))
             if ppl:
                 print(f"          val_ppl={ppl:.2f}")
     return log

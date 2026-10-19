@@ -1,20 +1,19 @@
-"""Per-sequence top-k mask cache. Reused for Δ steps between rescores."""
+"""Per-batch, per-sequence top-k target selection."""
 from __future__ import annotations
 import torch
 from typing import Optional
 
 
 class MaskCache:
-    """
-    Stores the [B, T] boolean selection mask.
-    Refreshed every Δ steps; reused otherwise.
+    """Cache only within the same step; different steps contain new batches.
 
-    Per-sequence top-k (not global):
-      Each sequence independently contributes exactly round(T·α) tokens.
-      Prevents one high-loss sequence dominating the batch budget.
+    rescore_interval is retained for API compatibility, but cannot permit
+    positional masks to leak into unrelated batches.
     """
 
     def __init__(self, selection_ratio: float, rescore_interval: int):
+        if not 0 < selection_ratio <= 1:
+            raise ValueError("selection_ratio must be in (0, 1]")
         self.alpha = selection_ratio
         self.delta = rescore_interval
         self._mask:      Optional[torch.Tensor] = None
@@ -22,7 +21,7 @@ class MaskCache:
         self.n_selected: int = 0
 
     def needs_rescore(self, step: int) -> bool:
-        return self._mask is None or (step - self._last_step) >= self.delta
+        return self._mask is None or step != self._last_step
 
     def update(
         self,
@@ -30,23 +29,26 @@ class MaskCache:
         step:      int,
         attn_mask: Optional[torch.Tensor] = None,   # [B, T] 0/1
     ) -> torch.Tensor:                        # [B, T] bool
-        B, T  = scores.shape
-        k     = max(1, round(T * self.alpha))
-
-        # Mask padding before top-k — padding logits have garbage entropy
+        B, T = scores.shape
+        if T < 2:
+            raise ValueError("Need at least two tokens")
+        valid = torch.ones_like(scores, dtype=torch.bool)
+        valid[:, 0] = False
         if attn_mask is not None:
-            scores = scores.masked_fill(attn_mask == 0, float("-inf"))
-
-        # Per-sequence top-k on positions 1..T-1 only.
-        # selective_loss() applies the mask as mask[:, 1:] vs shift_labels, so
-        # column 0 never supervises the CLM loss — selecting only index 0 used to
-        # yield all-ignore_index and NaN gradients at rescore steps.
-        scores_inner = scores[:, 1:]                   # [B, T-1]
-        Ti = scores_inner.shape[1]
-        k = max(1, min(k, Ti))
-        _, idx = scores_inner.topk(k, dim=-1)          # indices in [0, Ti-1)
-        mask = torch.zeros(B, T, dtype=torch.bool, device=scores.device)
-        mask.scatter_(1, idx + 1, True)                # map → columns 1..T-1
+            valid &= attn_mask.bool()
+            valid[:, 1:] &= attn_mask[:, :-1].bool()
+        if not torch.isfinite(scores[valid]).all():
+            raise ValueError("Non-finite token scores")
+        mask = torch.zeros_like(valid)
+        for row in range(B):
+            count = int(valid[row].sum())
+            if not count:
+                continue
+            k = min(count, max(1, round(count * self.alpha)))
+            ranked = scores[row].masked_fill(~valid[row], float("-inf"))
+            # Stable tie handling makes comparisons reproducible.
+            idx = torch.argsort(ranked, descending=True, stable=True)[:k]
+            mask[row, idx] = True
 
         self._mask      = mask
         self._last_step = step
